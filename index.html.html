@@ -4,68 +4,85 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
   <title>Gmenic Car Care CRM</title>
-
-  <!-- Firebase SDK (CDN) -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-
-  <!-- React + Babel (CDN) -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
   <style>
+    :root {
+      --bg:        #0a0a0f;
+      --bg2:       #111118;
+      --bg3:       #1a1a24;
+      --bg4:       #22222f;
+      --gold:      #c9a84c;
+      --gold2:     #e8c96a;
+      --gold3:     #f5e0a0;
+      --goldDim:   #c9a84c33;
+      --text:      #f0ece0;
+      --textSub:   #8a8070;
+      --textDim:   #4a4540;
+      --border:    #2a2830;
+      --borderGold:#c9a84c44;
+      --red:       #e05555;
+      --green:     #4caf7d;
+      --blue:      #5599ee;
+      --orange:    #e0944a;
+      --purple:    #9966cc;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background: #f0f4f8; }
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    @keyframes slideIn { from { transform: translateX(-100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
-    @keyframes fadeUp  { from { transform: translateY(20px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    ::-webkit-scrollbar { width: 3px; height: 3px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
+    input, textarea, select { background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-family: 'Noto Sans KR', sans-serif; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px var(--goldDim); }
+    option { background: var(--bg3); color: var(--text); }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes slideIn  { from { opacity:0; transform:translateX(-100%); } to { opacity:1; transform:translateX(0); } }
+    @keyframes shimmer  { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+    @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.5} }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
 
 <script>
-  // ✅ Firebase 설정 (gmeniccarcare-crm 프로젝트)
   const FIREBASE_CONFIG = {
     apiKey:            "AIzaSyAXYEaxVBLGk2UZllxA3RvMfBTd_7y9Pog",
     authDomain:        "gmeniccarcare-crm.firebaseapp.com",
     projectId:         "gmeniccarcare-crm",
     storageBucket:     "gmeniccarcare-crm.firebasestorage.app",
     messagingSenderId: "676991190244",
-    appId:             "1:676991190244:web:8447f0bfc884a3a3a3d8f1",
-    measurementId:     "G-HDE0GGHPNK"
+    appId:             "1:676991190244:web:8447f0bfc884a3a3a3d8f1"
   };
-
-  // Firebase 초기화 (전역)
   let _db = null;
   try {
     const app = firebase.initializeApp(FIREBASE_CONFIG);
     _db = firebase.firestore(app);
-    console.log("✅ Firebase 연결 성공");
-  } catch(e) {
-    console.warn("Firebase 초기화 실패, 로컬 모드:", e.message);
-  }
+  } catch(e) { console.warn("Firebase:", e.message); }
   window.__db = _db;
 </script>
 
 <script type="text/babel">
 const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
-// ── 상수 ────────────────────────────────────────────────────
+// ── 상수 ────────────────────────────────────────────
 const TIME_SLOTS    = ["10:00","13:00","16:00"];
 const SERVICES      = ["세차(일반)","세차(고압)","유리막 코팅","PPF","광택/폴리싱","냄새제거","엔진룸 세정","기타"];
 const PAYMENTS      = ["현금","카드","계좌이체"];
 const BOOKING_TYPES = ["신규","기존","단골","네이버","지메닉"];
-const BT_COLOR = {
-  신규:{bg:"#dcfce7",color:"#16a34a"}, 기존:{bg:"#dbeafe",color:"#1d4ed8"},
-  단골:{bg:"#fef9c3",color:"#b45309"}, 네이버:{bg:"#d1fae5",color:"#065f46"},
-  지메닉:{bg:"#ede9fe",color:"#6d28d9"},
+const BT = {
+  신규:  {bg:"#4caf7d22",color:"#4caf7d",border:"#4caf7d44"},
+  기존:  {bg:"#5599ee22",color:"#5599ee",border:"#5599ee44"},
+  단골:  {bg:"#c9a84c22",color:"#c9a84c",border:"#c9a84c44"},
+  네이버:{bg:"#4caf7d22",color:"#4caf7d",border:"#4caf7d44"},
+  지메닉:{bg:"#9966cc22",color:"#9966cc",border:"#9966cc44"},
 };
-const SLOT_COLORS = {"10:00":"#3b82f6","13:00":"#f59e0b","16:00":"#10b981","종일":"#8b5cf6"};
+const SC = {"10:00":"#5599ee","13:00":"#c9a84c","16:00":"#4caf7d","종일":"#9966cc"};
 
-// ── 날짜 유틸 ───────────────────────────────────────────────
+// ── 날짜 유틸 ────────────────────────────────────────
 const todayStr  = () => new Date().toISOString().slice(0,10);
 const formatKRW = n  => Number(n).toLocaleString("ko-KR")+"원";
 const WD        = s  => ["일","월","화","수","목","금","토"][new Date(s).getDay()];
@@ -88,43 +105,35 @@ function getHalfDays(y,m,half){
   for(let d=s;d<=e;d++) arr.push(d); return arr;
 }
 
-// ── 데이터 훅 ───────────────────────────────────────────────
-function useData(db) {
-  const [customers, setCustomers] = useState([]);
-  const [records,   setRecords]   = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [connected, setConnected] = useState(false);
-
+// ── 데이터 훅 ────────────────────────────────────────
+function useData(db){
+  const [customers,setCustomers]=useState([]);
+  const [records,setRecords]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [connected,setConnected]=useState(false);
   useEffect(()=>{
     if(db){
       Promise.all([
         db.collection("customers").get().then(s=>s.docs.map(d=>({...d.data(),id:d.id}))),
-        db.collection("records").get().then(s=>s.docs.map(d=>({...d.data(),id:d.id,
-          amount:Number(d.data().amount||0),
-          multiDay:Number(d.data().multiDay||1),
-          services:d.data().services||[]
-        })))
+        db.collection("records").get().then(s=>s.docs.map(d=>({...d.data(),id:d.id,amount:Number(d.data().amount||0),multiDay:Number(d.data().multiDay||1),services:d.data().services||[]})))
       ]).then(([c,r])=>{ setCustomers(c); setRecords(r); setLoading(false); setConnected(true); })
-        .catch(err=>{ console.error("Firestore 읽기 오류:", err); loadLocal(); });
+        .catch(()=>loadLocal());
     } else loadLocal();
   },[db]);
-
   function loadLocal(){
     setCustomers(JSON.parse(localStorage.getItem("crm_customers")||"[]"));
     setRecords(JSON.parse(localStorage.getItem("crm_records")||"[]"));
-    setLoading(false); setConnected(false);
+    setLoading(false);
   }
-
   async function saveCustomer(data){
     const isNew=!data.id, id=String(data.id||Date.now()), item={...data,id};
     const next=isNew?[...customers,item]:customers.map(c=>c.id===id?item:c);
     setCustomers(next);
-    if(db){ const {id:_,...rest}=item; await db.collection("customers").doc(id).set(rest); }
+    if(db){ const{id:_,...r}=item; await db.collection("customers").doc(id).set(r); }
     else localStorage.setItem("crm_customers",JSON.stringify(next));
   }
   async function deleteCustomer(id){
-    const sid=String(id);
-    const nc=customers.filter(c=>c.id!==sid), nr=records.filter(r=>r.customerId!==sid);
+    const sid=String(id), nc=customers.filter(c=>c.id!==sid), nr=records.filter(r=>r.customerId!==sid);
     setCustomers(nc); setRecords(nr);
     if(db) await db.collection("customers").doc(sid).delete();
     else{ localStorage.setItem("crm_customers",JSON.stringify(nc)); localStorage.setItem("crm_records",JSON.stringify(nr)); }
@@ -134,7 +143,7 @@ function useData(db) {
     const item={...data,id,customerId:String(data.customerId),amount:Number(data.amount),multiDay:Number(data.multiDay||1)};
     const next=isNew?[...records,item]:records.map(r=>r.id===id?item:r);
     setRecords(next);
-    if(db){ const {id:_,...rest}=item; await db.collection("records").doc(id).set(rest); }
+    if(db){ const{id:_,...r}=item; await db.collection("records").doc(id).set(r); }
     else localStorage.setItem("crm_records",JSON.stringify(next));
   }
   async function deleteRecord(id){
@@ -143,10 +152,10 @@ function useData(db) {
     if(db) await db.collection("records").doc(sid).delete();
     else localStorage.setItem("crm_records",JSON.stringify(next));
   }
-  return {customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord};
+  return{customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord};
 }
 
-// ── 매출 패널 ───────────────────────────────────────────────
+// ── 매출 패널 ────────────────────────────────────────
 function SalesPanel({records,selectedDate,onClose}){
   const ref=useRef(null);
   useEffect(()=>{
@@ -154,7 +163,6 @@ function SalesPanel({records,selectedDate,onClose}){
     setTimeout(()=>document.addEventListener("mousedown",h),50);
     return()=>document.removeEventListener("mousedown",h);
   },[onClose]);
-
   const stats=useMemo(()=>{
     const now=new Date(), tm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
     const wk=getWeekDates(selectedDate), wkS=wk[0], wkE=wk[6];
@@ -167,79 +175,108 @@ function SalesPanel({records,selectedDate,onClose}){
     const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
     return{
       day:{total:sum(dayR),count:dayR.length,byPay},
-      week:{total:sum(wkR),count:wkR.length,label:`${wkS.slice(5).replace("-","/")}~${wkE.slice(5).replace("-","/")}` },
-      month:{total:sum(moR),count:moR.length,pct:Math.round((now.getDate()/dim)*100),
-        label:`${now.getFullYear()}년 ${now.getMonth()+1}월`},
+      week:{total:sum(wkR),count:wkR.length,label:`${wkS.slice(5).replace("-",".")}~${wkE.slice(5).replace("-",".")}`},
+      month:{total:sum(moR),count:moR.length,pct:Math.round((now.getDate()/dim)*100),label:`${now.getFullYear()}.${now.getMonth()+1}`},
     };
   },[records,selectedDate]);
 
+  const GoldNum = ({v,size=28})=>(
+    <div style={{fontSize:size,fontWeight:900,background:`linear-gradient(135deg, #f5e0a0, #c9a84c)`,
+      WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1.2,fontFamily:"'Bebas Neue',sans-serif",
+      letterSpacing:1}}>{v}</div>
+  );
+
   return(
     <>
-      <div style={{position:"fixed",inset:0,zIndex:199,background:"rgba(0,0,0,0.35)"}} onClick={onClose}/>
-      <div ref={ref} style={{position:"fixed",top:0,left:0,bottom:0,zIndex:200,width:260,background:"#fff",
-        boxShadow:"6px 0 28px rgba(0,0,0,0.18)",borderRadius:"0 20px 20px 0",padding:"22px 18px",
-        display:"flex",flexDirection:"column",overflowY:"auto",animation:"slideIn 0.22s ease"}}>
-        <div style={{width:36,height:4,background:"#e5e7eb",borderRadius:2,margin:"0 auto 18px"}}/>
-        <div style={{fontWeight:800,fontSize:17,color:"#1e3a5f",marginBottom:18}}>💰 매출 현황</div>
+      <div style={{position:"fixed",inset:0,zIndex:199,background:"rgba(0,0,0,0.6)"}} onClick={onClose}/>
+      <div ref={ref} style={{position:"fixed",top:0,left:0,bottom:0,zIndex:200,width:270,
+        background:"linear-gradient(180deg,#111118 0%,#0a0a0f 100%)",
+        borderRight:"1px solid #c9a84c44",
+        boxShadow:"8px 0 40px rgba(0,0,0,0.6)",
+        padding:"24px 20px",display:"flex",flexDirection:"column",overflowY:"auto",
+        animation:"slideIn 0.25s ease"}}>
+        {/* 골드 라인 */}
+        <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,#c9a84c,transparent)"}}/>
+        <div style={{width:36,height:3,background:"linear-gradient(90deg,#c9a84c,#e8c96a)",borderRadius:2,margin:"0 auto 20px"}}/>
+
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:3,
+          background:"linear-gradient(135deg,#f5e0a0,#c9a84c)",WebkitBackgroundClip:"text",
+          WebkitTextFillColor:"transparent",marginBottom:24}}>
+          REVENUE
+        </div>
 
         {/* 일 매출 */}
-        <div>
-          <div style={Sty.panelLbl}>📅 오늘 · {selectedDate.slice(5).replace("-","/")} ({WD(selectedDate)})</div>
-          <div style={{fontSize:28,fontWeight:800,color:"#1e3a5f",lineHeight:1.2}}>{formatKRW(stats.day.total)}</div>
-          <div style={{fontSize:12,color:"#9ca3af",marginTop:4,marginBottom:stats.day.total>0?8:0}}>{stats.day.count}건</div>
+        <div style={{marginBottom:4,padding:"16px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#c9a84c",letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>
+            TODAY · {selectedDate.slice(5).replace("-",".")} {WD(selectedDate)}
+          </div>
+          <GoldNum v={formatKRW(stats.day.total)} size={30}/>
+          <div style={{fontSize:12,color:"#8a8070",marginTop:4,marginBottom:stats.day.total>0?10:0}}>{stats.day.count}건</div>
           {stats.day.total>0&&(
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
               {PAYMENTS.map(p=>stats.day.byPay[p]>0&&(
-                <span key={p} style={{fontSize:11,background:"#f0f4f8",color:"#374151",padding:"3px 8px",borderRadius:8,fontWeight:600}}>
+                <span key={p} style={{fontSize:10,background:"#c9a84c22",color:"#c9a84c",
+                  padding:"2px 8px",borderRadius:6,fontWeight:600,border:"1px solid #c9a84c33"}}>
                   {p} {formatKRW(stats.day.byPay[p])}
                 </span>
               ))}
             </div>
           )}
         </div>
-        <div style={{height:1,background:"#f3f4f6",margin:"16px 0"}}/>
+
+        <div style={{height:1,background:"linear-gradient(90deg,transparent,#2a2830,transparent)",margin:"14px 0"}}/>
 
         {/* 주 매출 */}
-        <div>
-          <div style={Sty.panelLbl}>📆 이번주 · {stats.week.label}</div>
-          <div style={{fontSize:22,fontWeight:800,color:"#1e3a5f"}}>{formatKRW(stats.week.total)}</div>
-          <div style={{fontSize:12,color:"#9ca3af",marginTop:4}}>{stats.week.count}건</div>
+        <div style={{marginBottom:4,padding:"14px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#8a8070",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>
+            WEEK · {stats.week.label}
+          </div>
+          <GoldNum v={formatKRW(stats.week.total)} size={22}/>
+          <div style={{fontSize:12,color:"#8a8070",marginTop:4}}>{stats.week.count}건</div>
         </div>
-        <div style={{height:1,background:"#f3f4f6",margin:"16px 0"}}/>
+
+        <div style={{height:1,background:"linear-gradient(90deg,transparent,#2a2830,transparent)",margin:"14px 0"}}/>
 
         {/* 월 매출 */}
-        <div>
-          <div style={Sty.panelLbl}>🗓 {stats.month.label}</div>
-          <div style={{fontSize:22,fontWeight:800,color:"#1e3a5f"}}>{formatKRW(stats.month.total)}</div>
-          <div style={{fontSize:12,color:"#9ca3af",marginTop:4,marginBottom:10}}>{stats.month.count}건</div>
-          <div style={{height:8,background:"#e5e7eb",borderRadius:4}}>
-            <div style={{height:8,background:"linear-gradient(90deg,#1e3a5f,#2d6a9f)",borderRadius:4,
-              width:`${stats.month.pct}%`,transition:"width 0.5s"}}/>
+        <div style={{padding:"14px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#8a8070",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>
+            MONTH · {stats.month.label}
           </div>
-          <div style={{fontSize:11,color:"#9ca3af",marginTop:4,textAlign:"right"}}>{stats.month.pct}% 경과</div>
+          <GoldNum v={formatKRW(stats.month.total)} size={22}/>
+          <div style={{fontSize:12,color:"#8a8070",marginTop:4,marginBottom:12}}>{stats.month.count}건</div>
+          <div style={{height:4,background:"#2a2830",borderRadius:2}}>
+            <div style={{height:4,background:"linear-gradient(90deg,#c9a84c,#e8c96a)",borderRadius:2,
+              width:`${stats.month.pct}%`,transition:"width 0.6s ease",boxShadow:"0 0 8px #c9a84c88"}}/>
+          </div>
+          <div style={{fontSize:11,color:"#c9a84c",marginTop:5,textAlign:"right",fontWeight:600}}>{stats.month.pct}%</div>
         </div>
 
         <button onClick={onClose} style={{marginTop:"auto",paddingTop:20,background:"none",border:"none",
-          color:"#9ca3af",fontSize:13,cursor:"pointer"}}>닫기</button>
+          color:"#4a4540",fontSize:12,cursor:"pointer",letterSpacing:1}}>CLOSE</button>
       </div>
     </>
   );
 }
 
-// ── 확장형 달력 ─────────────────────────────────────────────
+// ── 달력 ─────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate}){
   return(
     <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{minWidth:isWeek?"100%":"560px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"#e2e8f0"}}>
-          {["일","월","화","수","목","금","토"].map(d=>(
-            <div key={d} style={{background:"#f8fafc",textAlign:"center",padding:"8px 0",fontSize:12,fontWeight:700,
-              color:d==="일"?"#ef4444":d==="토"?"#3b82f6":"#64748b"}}>{d}</div>
+        {/* 요일 헤더 */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"#0a0a0f"}}>
+          {["SUN","MON","TUE","WED","THU","FRI","SAT"].map((d,i)=>(
+            <div key={d} style={{background:"#111118",textAlign:"center",padding:"8px 0",
+              fontSize:9,fontWeight:700,letterSpacing:1.5,fontFamily:"'Bebas Neue',sans-serif",
+              color:i===0?"#e05555":i===6?"#5599ee":"#4a4540"}}>
+              {d}
+            </div>
           ))}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"#e2e8f0"}}>
+        {/* 날짜 셀 */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"#0a0a0f"}}>
           {days.map((d,i)=>{
-            if(!d) return <div key={`e${i}`} style={{background:"#f8fafc",minHeight:isWeek?120:90}}/>;
+            if(!d) return <div key={`e${i}`} style={{background:"#0d0d14",minHeight:isWeek?120:88}}/>;
             const ds=isWeek?d:`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
             const isToday=ds===todayStr(), isSel=ds===selectedDate;
             const dayData=calendarMap[ds]||[];
@@ -250,37 +287,52 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
             const displayDay=isWeek?Number(ds.slice(8)):d;
             return(
               <div key={i} onClick={()=>onSelectDate(ds)}
-                style={{background:isSel?"#eef4ff":isToday?"#fff7ed":"#fff",
-                  minHeight:isWeek?120:90,padding:"4px 3px",cursor:"pointer",
-                  borderTop:isToday?"2px solid #f59e0b":isSel?"2px solid #2d6a9f":"2px solid transparent"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
-                  <span style={{fontSize:12,fontWeight:700,borderRadius:5,padding:"1px 4px",
-                    color:isToday?"#f59e0b":isSel?"#1e3a5f":dow===0?"#ef4444":dow===6?"#3b82f6":"#374151",
-                    background:isToday?"#fff7ed":isSel?"#dbeafe":"transparent"}}>
-                    {isToday?"●":""}{displayDay}
+                style={{
+                  background:isSel?"#1e1a10":isToday?"#141420":"#111118",
+                  minHeight:isWeek?120:88,padding:"5px 4px",cursor:"pointer",
+                  borderTop:isSel?"2px solid #c9a84c":isToday?"2px solid #c9a84c44":"2px solid transparent",
+                  transition:"background 0.15s",
+                  boxShadow:isSel?"inset 0 0 20px #c9a84c11":"none",
+                }}>
+                {/* 날짜 + 버튼 */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{
+                    fontSize:isWeek?15:12,fontWeight:700,
+                    fontFamily:"'Bebas Neue',sans-serif",letterSpacing:0.5,
+                    color:isSel?"#c9a84c":isToday?"#e8c96a":dow===0?"#e05555":dow===6?"#5599ee":"#6a6460",
+                  }}>
+                    {isToday&&<span style={{fontSize:7,marginRight:2,color:"#c9a84c"}}>●</span>}
+                    {displayDay}
                   </span>
                   <button onClick={e=>{e.stopPropagation();onAddBooking(ds);}}
-                    style={{width:16,height:16,borderRadius:"50%",border:"none",background:"#e2e8f0",
-                      color:"#64748b",fontSize:11,fontWeight:700,cursor:"pointer",
-                      display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>+</button>
+                    style={{width:15,height:15,borderRadius:"50%",border:"1px solid #2a2830",
+                      background:"#1a1a24",color:"#c9a84c",fontSize:11,fontWeight:700,cursor:"pointer",
+                      display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,
+                      lineHeight:1}}>+</button>
                 </div>
+                {/* 종일 */}
                 {allDayItem&&(
-                  <div style={{fontSize:9,fontWeight:700,borderRadius:3,padding:"2px 4px",marginBottom:2,
-                    background:isContDay?"#fde68a":"#f59e0b",color:isContDay?"#92400e":"#fff",
+                  <div style={{fontSize:8,fontWeight:700,borderRadius:3,padding:"2px 4px",marginBottom:2,
+                    background:isContDay?"#c9a84c22":"#9966cc33",
+                    color:isContDay?"#c9a84c":"#9966cc",
+                    border:`1px solid ${isContDay?"#c9a84c44":"#9966cc44"}`,
                     whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                    {isContDay?"↩작업중":`🌅${allDayItem._custName||"종일"}`}
+                    {isContDay?"↩작업중":`◆${allDayItem._custName||"종일"}`}
                   </div>
                 )}
+                {/* 시간 예약 */}
                 {timeItems.slice(0,isWeek?3:2).map((r,ri)=>(
-                  <div key={ri} style={{fontSize:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
-                    background:(SLOT_COLORS[r.slot]||"#999")+"22",
-                    borderLeft:`2px solid ${SLOT_COLORS[r.slot]||"#999"}`,
-                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"#1a1a2e",fontWeight:600}}>
-                    <span style={{color:SLOT_COLORS[r.slot]||"#999",fontSize:8}}>{r.slot}</span> {r._custName||"예약"}
+                  <div key={ri} style={{fontSize:8,borderRadius:3,padding:"2px 4px",marginBottom:2,
+                    background:(SC[r.slot]||"#999")+"22",
+                    borderLeft:`2px solid ${SC[r.slot]||"#999"}`,
+                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                    color:"#c0b89a",fontWeight:500}}>
+                    <span style={{color:SC[r.slot]||"#999",fontWeight:700,fontSize:7}}>{r.slot} </span>
+                    {r._custName||"예약"}
                   </div>
                 ))}
                 {timeItems.length>(isWeek?3:2)&&(
-                  <div style={{fontSize:9,color:"#9ca3af",paddingLeft:4}}>+{timeItems.length-(isWeek?3:2)}건</div>
+                  <div style={{fontSize:8,color:"#4a4540",paddingLeft:4}}>+{timeItems.length-(isWeek?3:2)}</div>
                 )}
               </div>
             );
@@ -291,18 +343,18 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
   );
 }
 
-// ── 메인 앱 ─────────────────────────────────────────────────
+// ── 메인 앱 ──────────────────────────────────────────
 function App(){
-  const db = window.__db;
+  const db=window.__db;
   const {customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord}=useData(db);
-  const [tab,    setTab]     = useState("calendar");
-  const [selDate,setSelDate] = useState(todayStr());
-  const [calY,   setCalY]    = useState(new Date().getFullYear());
-  const [calM,   setCalM]    = useState(new Date().getMonth());
-  const [view,   setView]    = useState("month");
-  const [showSales,    setShowSales]    = useState(false);
-  const [bookingModal, setBookingModal] = useState(null);
-  const [custModal,    setCustModal]    = useState(null);
+  const [tab,setTab]=useState("calendar");
+  const [selDate,setSelDate]=useState(todayStr());
+  const [calY,setCalY]=useState(new Date().getFullYear());
+  const [calM,setCalM]=useState(new Date().getMonth());
+  const [view,setView]=useState("month");
+  const [showSales,setShowSales]=useState(false);
+  const [bookingModal,setBookingModal]=useState(null);
+  const [custModal,setCustModal]=useState(null);
   const closeSales=useCallback(()=>setShowSales(false),[]);
 
   function goPrev(){
@@ -319,10 +371,10 @@ function App(){
   }
 
   const calTitle=useMemo(()=>{
-    if(view==="week"){const wk=getWeekDates(selDate);return`${wk[0].slice(5).replace("-","/")}~${wk[6].slice(5).replace("-","/")} 주간`;}
-    if(view==="first")return`${calY}년 ${calM+1}월 전반`;
-    if(view==="second")return`${calY}년 ${calM+1}월 후반`;
-    return`${calY}년 ${calM+1}월`;
+    if(view==="week"){const wk=getWeekDates(selDate);return`${wk[0].slice(5).replace("-",".")} ~ ${wk[6].slice(5).replace("-",".")}`;}
+    if(view==="first")return`${calY}.${calM+1} 전반`;
+    if(view==="second")return`${calY}.${calM+1} 후반`;
+    return`${calY}.${String(calM+1).padStart(2,"0")}`;
   },[view,calY,calM,selDate]);
 
   const calDays=useMemo(()=>{
@@ -345,10 +397,7 @@ function App(){
   },[records,customers]);
 
   const getCustomer=id=>customers.find(c=>c.id===id||c.id===String(id));
-
-  function getAllDayRec(date){
-    return records.find(r=>{if(r.slot!=="종일")return false;return spanDates(r.date,r.multiDay||1).includes(date);});
-  }
+  function getAllDayRec(date){ return records.find(r=>{ if(r.slot!=="종일")return false; return spanDates(r.date,r.multiDay||1).includes(date); }); }
   function getSlotRec(date,slot){
     if(slot==="종일")return records.find(r=>r.date===date&&r.slot==="종일");
     return records.find(r=>r.date===date&&r.slot===slot&&r.slot!=="종일");
@@ -359,36 +408,48 @@ function App(){
   const isCont=allDayRec&&allDayRec.date!==selDate;
 
   if(loading) return(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:14,
-      background:"linear-gradient(135deg,#1e3a5f,#2d6a9f)"}}>
-      <div style={{fontSize:48}}>🚗</div>
-      <div style={{fontSize:15,color:"#fff",fontWeight:700}}>Gmenic Car Care CRM</div>
-      <div style={{fontSize:13,color:"rgba(255,255,255,0.7)"}}>
-        {db?"🔥 Firebase 연결중...":"💾 데이터 로딩중..."}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:16,background:"#0a0a0f"}}>
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:36,letterSpacing:4,
+        background:"linear-gradient(135deg,#f5e0a0,#c9a84c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+        GMENIC CAR CARE
       </div>
+      <div style={{width:60,height:2,background:"linear-gradient(90deg,transparent,#c9a84c,transparent)",animation:"pulse 1.5s infinite"}}/>
+      <div style={{fontSize:12,color:"#4a4540",letterSpacing:2}}>{db?"CONNECTING FIREBASE...":"LOADING..."}</div>
     </div>
   );
 
   return(
-    <div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"var(--bg)",color:"var(--text)"}}>
 
       {/* ── 헤더 ── */}
-      <header style={{background:"linear-gradient(135deg,#1e3a5f 0%,#2d6a9f 100%)",padding:"12px 16px",
-        boxShadow:"0 2px 10px rgba(0,0,0,0.2)"}}>
+      <header style={{background:"linear-gradient(180deg,#111118,#0d0d14)",borderBottom:"1px solid #c9a84c33",
+        padding:"12px 16px",position:"sticky",top:0,zIndex:50,
+        boxShadow:"0 4px 20px rgba(0,0,0,0.5)"}}>
+        {/* 골드 상단 라인 */}
+        <div style={{position:"absolute",top:0,left:0,right:0,height:2,
+          background:"linear-gradient(90deg,transparent 0%,#c9a84c 30%,#e8c96a 50%,#c9a84c 70%,transparent 100%)"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
             <button onClick={()=>setShowSales(v=>!v)}
-              style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:10,
-                padding:"7px 10px",cursor:"pointer",fontSize:16}}>💰</button>
+              style={{background:"#c9a84c22",border:"1px solid #c9a84c44",borderRadius:8,
+                padding:"7px 9px",cursor:"pointer",fontSize:14,transition:"all 0.2s",
+                boxShadow:showSales?"0 0 12px #c9a84c44":"none"}}>
+              💰
+            </button>
             <div>
-              <div style={{color:"#fff",fontWeight:900,fontSize:15,letterSpacing:0.3}}>🚗 Gmenic Car Care CRM</div>
-              <div style={{color:"rgba(255,255,255,0.65)",fontSize:10,marginTop:1}}>
-                해운대 1인 디테일링샵 · {connected?"🔥 Firebase 연결됨":"💾 로컬 저장"}
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,
+                background:"linear-gradient(135deg,#f5e0a0,#c9a84c)",
+                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+                GMENIC CAR CARE CRM
+              </div>
+              <div style={{fontSize:10,color:"#4a4540",letterSpacing:1,marginTop:1}}>
+                HAEUNDAE · {connected?"🔥 FIREBASE":"💾 LOCAL"}
               </div>
             </div>
           </div>
-          <div style={{background:"rgba(255,255,255,0.15)",color:"#fff",padding:"4px 10px",borderRadius:20,fontSize:11}}>
-            {todayStr().slice(5).replace("-","/")} ({WD(todayStr())})
+          <div style={{background:"#c9a84c22",border:"1px solid #c9a84c44",color:"#c9a84c",
+            padding:"4px 10px",borderRadius:8,fontSize:11,fontWeight:700,letterSpacing:1}}>
+            {todayStr().slice(5).replace("-",".")} {WD(todayStr())}
           </div>
         </div>
       </header>
@@ -396,12 +457,15 @@ function App(){
       {showSales&&<SalesPanel records={records} selectedDate={selDate} onClose={closeSales}/>}
 
       {/* ── 탭 ── */}
-      <nav style={{display:"flex",background:"#fff",borderBottom:"2px solid #e5e7eb"}}>
-        {[["calendar","📅 캘린더"],["customers","👥 고객"],["analytics","📊 분석"]].map(([k,l])=>(
+      <nav style={{display:"flex",background:"#0d0d14",borderBottom:"1px solid #1a1a24"}}>
+        {[["calendar","캘린더"],["customers","고객"],["analytics","분석"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)}
-            style={{flex:1,padding:"12px 0",border:"none",background:"none",fontSize:13,cursor:"pointer",fontWeight:500,
-              color:tab===k?"#1e3a5f":"#6b7280",
-              borderBottom:tab===k?"2px solid #1e3a5f":"none",marginBottom:tab===k?-2:0}}>
+            style={{flex:1,padding:"13px 0",border:"none",background:"none",
+              fontSize:12,cursor:"pointer",fontWeight:700,letterSpacing:1.5,
+              fontFamily:"'Bebas Neue',sans-serif",
+              color:tab===k?"#c9a84c":"#4a4540",
+              borderBottom:tab===k?"2px solid #c9a84c":"2px solid transparent",
+              transition:"all 0.2s"}}>
             {l}
           </button>
         ))}
@@ -411,36 +475,39 @@ function App(){
 
         {/* ══ 캘린더 탭 ══ */}
         {tab==="calendar"&&(
-          <div>
+          <div style={{animation:"fadeUp 0.3s ease"}}>
             {/* 툴바 */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,gap:8}}>
-              <div style={{display:"flex",background:"#e5e7eb",borderRadius:8,padding:2,gap:1}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8}}>
+              <div style={{display:"flex",background:"#111118",borderRadius:8,padding:2,gap:1,border:"1px solid #1a1a24"}}>
                 {[["month","월"],["first","전반"],["second","후반"],["week","주"]].map(([v,l])=>(
                   <button key={v} onClick={()=>setView(v)}
-                    style={{padding:"5px 10px",border:"none",fontSize:11,fontWeight:600,cursor:"pointer",borderRadius:6,
-                      background:view===v?"#fff":"none",color:view===v?"#1e3a5f":"#6b7280",
-                      boxShadow:view===v?"0 1px 3px rgba(0,0,0,0.1)":"none"}}>{l}</button>
+                    style={{padding:"5px 10px",border:"none",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
+                      background:view===v?"#c9a84c22":"none",
+                      color:view===v?"#c9a84c":"#4a4540",
+                      boxShadow:view===v?"0 0 8px #c9a84c33":"none",
+                      letterSpacing:0.5,transition:"all 0.2s"}}>{l}</button>
                 ))}
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <button onClick={goPrev} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#1e3a5f",padding:"0 4px"}}>‹</button>
-                <span style={{fontWeight:700,fontSize:12,color:"#1e3a5f",minWidth:110,textAlign:"center"}}>{calTitle}</span>
-                <button onClick={goNext} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#1e3a5f",padding:"0 4px"}}>›</button>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <button onClick={goPrev} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#c9a84c",padding:"0 4px"}}>‹</button>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:"#c9a84c",minWidth:100,textAlign:"center",letterSpacing:1}}>{calTitle}</span>
+                <button onClick={goNext} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#c9a84c",padding:"0 4px"}}>›</button>
               </div>
             </div>
 
             {/* 범례 */}
-            <div style={{display:"flex",gap:10,marginBottom:8,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:12,marginBottom:8}}>
               {[...TIME_SLOTS,"종일"].map(s=>(
-                <span key={s} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#6b7280"}}>
-                  <span style={{width:7,height:7,borderRadius:"50%",background:SLOT_COLORS[s],display:"inline-block"}}/>
+                <span key={s} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#4a4540"}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:SC[s],display:"inline-block",boxShadow:`0 0 4px ${SC[s]}`}}/>
                   {s}
                 </span>
               ))}
             </div>
 
             {/* 달력 */}
-            <div style={{borderRadius:12,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,0.1)",marginBottom:14}}>
+            <div style={{borderRadius:12,overflow:"hidden",border:"1px solid #c9a84c22",marginBottom:14,
+              boxShadow:"0 4px 20px rgba(0,0,0,0.4)"}}>
               <BigCalendar days={calDays} calYear={calY} calMonth={calM} calendarMap={calendarMap}
                 isWeek={view==="week"} onSelectDate={setSelDate}
                 onAddBooking={date=>setBookingModal({date,slot:"10:00",record:null})}
@@ -448,56 +515,63 @@ function App(){
             </div>
 
             {/* 선택일 헤더 */}
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <span style={{fontSize:13,fontWeight:700,color:"#1e3a5f"}}>{selDate} ({WD(selDate)})</span>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1,color:"#c9a84c"}}>{selDate.replace(/-/g,".")}</span>
+                <span style={{fontSize:12,color:"#4a4540",marginLeft:6}}>{WD(selDate)}요일</span>
+              </div>
               <button onClick={()=>setBookingModal({date:selDate,slot:"10:00",record:null})}
-                style={{background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,
-                  padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>+ 예약 추가</button>
+                style={{background:"linear-gradient(135deg,#c9a84c,#e8c96a)",color:"#0a0a0f",
+                  border:"none",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700,
+                  boxShadow:"0 2px 12px #c9a84c44"}}>
+                + 예약 추가
+              </button>
             </div>
 
             {/* 연속 배너 */}
             {isBlocked&&isCont&&(
               <div onClick={()=>setBookingModal({date:allDayRec.date,slot:"종일",record:allDayRec})}
-                style={{display:"flex",alignItems:"center",gap:10,background:"linear-gradient(135deg,#fef3c7,#fde68a)",
-                  borderRadius:12,padding:"12px 14px",marginBottom:8,border:"2px solid #f59e0b",cursor:"pointer"}}>
+                style={{display:"flex",alignItems:"center",gap:10,
+                  background:"linear-gradient(135deg,#9966cc22,#9966cc11)",
+                  borderRadius:12,padding:"12px 14px",marginBottom:8,
+                  border:"1px solid #9966cc44",cursor:"pointer"}}>
                 <div style={{fontSize:20}}>🔧</div>
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:700,color:"#92400e",fontSize:14}}>연속 작업 진행중</div>
-                  <div style={{fontSize:12,color:"#78350f",marginTop:1}}>{getCustomer(allDayRec.customerId)?.name} · {(allDayRec.services||[]).join(", ")}</div>
-                  <div style={{fontSize:11,color:"#b45309",marginTop:2}}>📅 {allDayRec.date} ~ {addDays(allDayRec.date,(allDayRec.multiDay||1)-1)}</div>
+                  <div style={{fontWeight:700,color:"#9966cc",fontSize:13,letterSpacing:0.5}}>연속 작업 진행중</div>
+                  <div style={{fontSize:12,color:"#8a8070",marginTop:2}}>{getCustomer(allDayRec.customerId)?.name} · {(allDayRec.services||[]).join(", ")}</div>
+                  <div style={{fontSize:11,color:"#6a6070",marginTop:1}}>📅 {allDayRec.date} ~ {addDays(allDayRec.date,(allDayRec.multiDay||1)-1)}</div>
                 </div>
-                <span style={{fontSize:11,color:"#b45309"}}>확인 ›</span>
+                <span style={{fontSize:11,color:"#9966cc"}}>›</span>
               </div>
             )}
 
             {/* 종일 슬롯 */}
             {!isCont&&(()=>{
               const rec=getSlotRec(selDate,"종일"), cust=rec?getCustomer(rec.customerId):null;
-              const btc=cust?BT_COLOR[cust.bookingType]:null;
+              const btc=cust?BT[cust.bookingType]:null;
               return(
                 <div onClick={()=>setBookingModal({date:selDate,slot:"종일",record:rec||null})}
-                  style={{borderRadius:12,padding:"12px 14px",marginBottom:6,
-                    boxShadow:"0 1px 4px rgba(0,0,0,0.08)",border:"2px solid",cursor:"pointer",
-                    borderColor:rec?"#f59e0b":"#e5e7eb",borderStyle:rec?"solid":"dashed",
-                    background:rec?"linear-gradient(135deg,#fffbeb,#fef3c7)":"#fafafa"}}>
+                  style={{borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer",
+                    background:rec?"linear-gradient(135deg,#9966cc22,#9966cc11)":"#111118",
+                    border:`1px solid ${rec?"#9966cc44":"#1a1a24"}`,
+                    borderStyle:rec?"solid":"dashed",transition:"all 0.2s"}}>
                   {rec&&cust?(
                     <>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        <div style={{display:"flex",gap:6}}>
-                          <span style={{fontSize:10,fontWeight:700,background:"#f59e0b",color:"#fff",padding:"2px 8px",borderRadius:8}}>🌅 종일</span>
-                          {rec.multiDay>1&&<span style={{fontSize:10,fontWeight:700,background:"#dc2626",color:"#fff",padding:"2px 8px",borderRadius:8}}>📅{rec.multiDay}일</span>}
+                        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                          <span style={{fontSize:10,fontWeight:700,background:"#9966cc33",color:"#9966cc",padding:"2px 8px",borderRadius:6,border:"1px solid #9966cc44"}}>◆ 종일</span>
+                          {rec.multiDay>1&&<span style={{fontSize:10,fontWeight:700,background:"#e0555522",color:"#e05555",padding:"2px 8px",borderRadius:6,border:"1px solid #e0555544"}}>{rec.multiDay}일</span>}
                         </div>
-                        <span style={{...Sty.typeBadge,...btc}}>{cust.bookingType}</span>
+                        {btc&&<span style={{fontSize:10,fontWeight:700,background:btc.bg,color:btc.color,padding:"2px 8px",borderRadius:6,border:`1px solid ${btc.border}`}}>{cust.bookingType}</span>}
                       </div>
-                      <div style={{fontWeight:700,fontSize:15,color:"#92400e",marginTop:6}}>{cust.name}</div>
-                      <div style={{fontSize:12,color:"#78350f",marginTop:2}}>{cust.carModel} · {(rec.services||[]).join(", ")}</div>
-                      <div style={{fontSize:13,color:"#b45309",fontWeight:700,marginTop:4}}>{formatKRW(rec.amount)} · {rec.payment}</div>
-                      {rec.memo&&<div style={{fontSize:11,color:"#92400e",marginTop:2}}>📝 {rec.memo}</div>}
+                      <div style={{fontWeight:800,fontSize:15,color:"#f0ece0",marginTop:8}}>{cust.name}</div>
+                      <div style={{fontSize:12,color:"#8a8070",marginTop:2}}>{cust.carModel} · {(rec.services||[]).join(", ")}</div>
+                      <div style={{fontSize:13,color:"#c9a84c",fontWeight:700,marginTop:4}}>{formatKRW(rec.amount)} · {rec.payment}</div>
                     </>
                   ):(
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{fontSize:10,fontWeight:700,background:"#e5e7eb",color:"#6b7280",padding:"2px 8px",borderRadius:8}}>🌅 종일</span>
-                      <span style={{color:"#9ca3af",fontSize:13}}>+ 종일/장기 작업 등록</span>
+                      <span style={{fontSize:10,fontWeight:700,background:"#1a1a24",color:"#4a4540",padding:"2px 8px",borderRadius:6,border:"1px solid #2a2830"}}>◆ 종일</span>
+                      <span style={{color:"#4a4540",fontSize:12}}>+ 종일 / 장기 작업 등록</span>
                     </div>
                   )}
                 </div>
@@ -505,35 +579,39 @@ function App(){
             })()}
 
             {/* 구분선 */}
-            <div style={{display:"flex",alignItems:"center",margin:"8px 0",gap:6}}>
-              <span style={{fontSize:10,fontWeight:600,color:"#9ca3af",background:"#f0f4f8",padding:"0 6px",whiteSpace:"nowrap"}}>시간 예약</span>
-              <div style={{flex:1,height:1,background:"#e5e7eb"}}/>
+            <div style={{display:"flex",alignItems:"center",margin:"10px 0 8px",gap:8}}>
+              <div style={{flex:1,height:1,background:"linear-gradient(90deg,#c9a84c44,transparent)"}}/>
+              <span style={{fontSize:9,fontWeight:700,color:"#4a4540",letterSpacing:2,fontFamily:"'Bebas Neue',sans-serif"}}>TIME SLOTS</span>
+              <div style={{flex:1,height:1,background:"linear-gradient(90deg,transparent,#c9a84c44)"}}/>
             </div>
 
             {/* 시간 슬롯 */}
             {TIME_SLOTS.map(slot=>{
               const rec=getSlotRec(selDate,slot), cust=rec?getCustomer(rec.customerId):null;
-              const blocked=isBlocked&&!rec, btc=cust?BT_COLOR[cust.bookingType]:null;
-              const sc=SLOT_COLORS[slot];
+              const blocked=isBlocked&&!rec, btc=cust?BT[cust.bookingType]:null;
+              const sc=SC[slot];
               return(
                 <div key={slot} onClick={()=>{if(!blocked)setBookingModal({date:selDate,slot,record:rec||null});}}
-                  style={{background:rec?"#f8fbff":"#fff",borderRadius:12,padding:"11px 14px",marginBottom:7,
-                    boxShadow:"0 1px 4px rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:12,
-                    border:`2px solid ${rec?sc+"66":"transparent"}`,
-                    cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.4:1}}>
-                  <div style={{fontWeight:800,fontSize:14,minWidth:42,color:sc}}>{slot}</div>
-                  {blocked?<div style={{color:"#9ca3af",fontSize:13}}>🔒 종일 작업 배정중</div>
+                  style={{background:rec?"#111118":"#0d0d14",borderRadius:12,padding:"12px 14px",marginBottom:7,
+                    display:"flex",alignItems:"center",gap:12,
+                    border:`1px solid ${rec?sc+"44":"#1a1a24"}`,
+                    boxShadow:rec?`0 2px 12px ${sc}22`:"none",
+                    cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.3:1,
+                    transition:"all 0.2s"}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,minWidth:44,
+                    color:sc,letterSpacing:0.5,textShadow:`0 0 8px ${sc}88`}}>{slot}</div>
+                  {blocked?<div style={{color:"#2a2830",fontSize:12,letterSpacing:1}}>🔒 FULL DAY</div>
                   :rec&&cust?(
                     <div style={{flex:1}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontWeight:700,fontSize:14,color:"#111827"}}>{cust.name}</span>
-                        <span style={{...Sty.typeBadge,...btc}}>{cust.bookingType}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontWeight:700,fontSize:14,color:"#f0ece0"}}>{cust.name}</span>
+                        {btc&&<span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`}}>{cust.bookingType}</span>}
                       </div>
-                      <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{cust.carModel} · {(rec.services||[]).join(", ")}</div>
-                      <div style={{fontSize:12,fontWeight:600,marginTop:2,color:sc}}>{formatKRW(rec.amount)} · {rec.payment}</div>
-                      {rec.memo&&<div style={{fontSize:11,color:"#9ca3af",marginTop:1}}>📝 {rec.memo}</div>}
+                      <div style={{fontSize:11,color:"#6a6460",marginTop:2}}>{cust.carModel} · {(rec.services||[]).join(", ")}</div>
+                      <div style={{fontSize:12,fontWeight:700,marginTop:3,color:sc}}>{formatKRW(rec.amount)} · {rec.payment}</div>
+                      {rec.memo&&<div style={{fontSize:10,color:"#4a4540",marginTop:2}}>📝 {rec.memo}</div>}
                     </div>
-                  ):<div style={{color:"#9ca3af",fontSize:13}}>+ 예약 등록</div>}
+                  ):<div style={{color:"#2a2830",fontSize:12,letterSpacing:1}}>+ ADD BOOKING</div>}
                 </div>
               );
             })}
@@ -542,39 +620,47 @@ function App(){
 
         {/* ══ 고객 탭 ══ */}
         {tab==="customers"&&(
-          <div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <div style={{fontWeight:700,fontSize:15,color:"#1e3a5f"}}>고객 목록 ({customers.length}명)</div>
+          <div style={{animation:"fadeUp 0.3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#c9a84c"}}>CUSTOMERS</div>
+                <div style={{fontSize:11,color:"#4a4540",marginTop:1}}>{customers.length}명 등록</div>
+              </div>
               <button onClick={()=>setCustModal("new")}
-                style={{background:"#1e3a5f",color:"#fff",border:"none",borderRadius:8,padding:"7px 14px",fontSize:13,cursor:"pointer",fontWeight:600}}>
+                style={{background:"linear-gradient(135deg,#c9a84c,#e8c96a)",color:"#0a0a0f",
+                  border:"none",borderRadius:8,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700,
+                  boxShadow:"0 2px 12px #c9a84c44"}}>
                 + 신규 등록
               </button>
             </div>
             {customers.length===0&&(
-              <div style={{textAlign:"center",padding:"40px 0",color:"#9ca3af",fontSize:14}}>
-                등록된 고객이 없습니다.<br/>
-                <span style={{fontSize:12}}>+ 신규 등록 버튼을 눌러 추가하세요</span>
+              <div style={{textAlign:"center",padding:"50px 0",color:"#2a2830",fontSize:13,letterSpacing:1}}>
+                NO CUSTOMERS YET
               </div>
             )}
             {customers.map(c=>{
               const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
               const total=cRecs.reduce((s,r)=>s+Number(r.amount),0);
               const last=[...cRecs].sort((a,b)=>b.date.localeCompare(a.date))[0];
-              const btc=BT_COLOR[c.bookingType]||BT_COLOR["신규"];
+              const btc=BT[c.bookingType]||BT["신규"];
               return(
                 <div key={c.id} onClick={()=>setCustModal(c)}
-                  style={{background:"#fff",borderRadius:12,padding:13,marginBottom:9,
-                    boxShadow:"0 1px 4px rgba(0,0,0,0.08)",cursor:"pointer"}}>
+                  style={{background:"#111118",borderRadius:12,padding:"13px 14px",marginBottom:8,
+                    border:"1px solid #1a1a24",cursor:"pointer",transition:"all 0.2s",
+                    boxShadow:"0 2px 8px rgba(0,0,0,0.3)"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{fontWeight:700,fontSize:14,color:"#111827"}}>{c.name}</span>
-                      <span style={{...Sty.typeBadge,...btc}}>{c.bookingType}</span>
+                      <span style={{fontWeight:700,fontSize:14,color:"#f0ece0"}}>{c.name}</span>
+                      <span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,
+                        padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`}}>{c.bookingType}</span>
                     </div>
-                    <span style={{fontWeight:700,color:"#1e3a5f",fontSize:14}}>{formatKRW(total)}</span>
+                    <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:0.5,
+                      background:"linear-gradient(135deg,#f5e0a0,#c9a84c)",
+                      WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{formatKRW(total)}</span>
                   </div>
-                  <div style={{fontSize:12,color:"#6b7280",marginTop:3}}>{c.carModel} · {c.phone}</div>
-                  {last&&<div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>최근: {last.date} · {(last.services||[]).join(", ")}</div>}
-                  {c.memo&&<div style={{fontSize:11,color:"#f59e0b",marginTop:2}}>📝 {c.memo}</div>}
+                  <div style={{fontSize:11,color:"#4a4540",marginTop:4}}>{c.carModel} · {c.phone}</div>
+                  {last&&<div style={{fontSize:10,color:"#3a3430",marginTop:2}}>최근: {last.date} · {(last.services||[]).join(", ")}</div>}
+                  {c.memo&&<div style={{fontSize:10,color:"#c9a84c88",marginTop:2}}>📝 {c.memo}</div>}
                 </div>
               );
             })}
@@ -592,48 +678,61 @@ function App(){
           const svcRev={}; SERVICES.forEach(s=>svcRev[s]=0);
           records.forEach(r=>(r.services||[]).forEach(s=>{svcRev[s]=(svcRev[s]||0)+Number(r.amount)/(r.services.length||1);}));
           const maxRev=Math.max(...Object.values(svcRev),1);
+          const totalAll=records.reduce((s,r)=>s+Number(r.amount),0);
+
+          const GoldStat=({label,value,sub})=>(
+            <div style={{background:"#111118",borderRadius:12,padding:"14px 10px",textAlign:"center",border:"1px solid #1a1a24"}}>
+              <div style={{fontSize:9,fontWeight:700,color:"#4a4540",letterSpacing:1.5,marginBottom:6,fontFamily:"'Bebas Neue',sans-serif"}}>{label}</div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:0.5,
+                background:"linear-gradient(135deg,#f5e0a0,#c9a84c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+                {value}
+              </div>
+              {sub&&<div style={{fontSize:9,color:"#3a3430",marginTop:2}}>{sub}</div>}
+            </div>
+          );
+
           return(
-            <div>
+            <div style={{animation:"fadeUp 0.3s ease"}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#c9a84c",marginBottom:14}}>ANALYTICS</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-                {[["이번 달",tR.reduce((s,r)=>s+Number(r.amount),0),tR.length+"건"],
-                  ["지난 달",lR.reduce((s,r)=>s+Number(r.amount),0),""],
-                  ["누적",records.reduce((s,r)=>s+Number(r.amount),0),""]].map(([l,v,sub])=>(
-                  <div key={l} style={{background:"#fff",borderRadius:12,padding:"12px 8px",textAlign:"center",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-                    <div style={{fontSize:10,color:"#6b7280",marginBottom:5}}>{l}</div>
-                    <div style={{fontSize:12,fontWeight:800,color:"#1e3a5f"}}>{formatKRW(v)}</div>
-                    {sub&&<div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>{sub}</div>}
-                  </div>
-                ))}
+                <GoldStat label="THIS MONTH" value={formatKRW(tR.reduce((s,r)=>s+Number(r.amount),0))} sub={tR.length+"건"}/>
+                <GoldStat label="LAST MONTH" value={formatKRW(lR.reduce((s,r)=>s+Number(r.amount),0))}/>
+                <GoldStat label="TOTAL" value={formatKRW(totalAll)}/>
               </div>
-              <div style={{background:"#fff",borderRadius:12,padding:14,marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-                <div style={{fontWeight:700,fontSize:14,color:"#1e3a5f",marginBottom:12}}>서비스별 매출</div>
+
+              {/* 서비스별 매출 */}
+              <div style={{background:"#111118",borderRadius:12,padding:14,marginBottom:12,border:"1px solid #1a1a24"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:2,color:"#c9a84c",marginBottom:14}}>SERVICE REVENUE</div>
                 {Object.entries(svcRev).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([svc,amt])=>(
-                  <div key={svc} style={{marginBottom:10}}>
-                    <div style={{display:"flex",justifyContent:"space-between"}}>
-                      <span style={{fontSize:13,color:"#374151"}}>{svc}</span>
-                      <span style={{fontSize:13,fontWeight:600,color:"#1e3a5f"}}>{formatKRW(Math.round(amt))}</span>
+                  <div key={svc} style={{marginBottom:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <span style={{fontSize:12,color:"#8a8070"}}>{svc}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:"#c9a84c"}}>{formatKRW(Math.round(amt))}</span>
                     </div>
-                    <div style={{height:7,background:"#e5e7eb",borderRadius:4,marginTop:4}}>
-                      <div style={{height:7,background:"linear-gradient(90deg,#1e3a5f,#2d6a9f)",borderRadius:4,width:`${(amt/maxRev)*100}%`}}/>
+                    <div style={{height:4,background:"#1a1a24",borderRadius:2}}>
+                      <div style={{height:4,background:"linear-gradient(90deg,#c9a84c,#e8c96a)",borderRadius:2,
+                        width:`${(amt/maxRev)*100}%`,boxShadow:"0 0 6px #c9a84c66",transition:"width 0.5s"}}/>
                     </div>
                   </div>
                 ))}
               </div>
-              <div style={{background:"#fff",borderRadius:12,padding:14,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-                <div style={{fontWeight:700,fontSize:14,color:"#1e3a5f",marginBottom:12}}>예약구분별 현황</div>
+
+              {/* 예약구분별 */}
+              <div style={{background:"#111118",borderRadius:12,padding:14,border:"1px solid #1a1a24"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:2,color:"#c9a84c",marginBottom:14}}>BOOKING SOURCE</div>
                 {BOOKING_TYPES.map(bt=>{
                   const cnt=customers.filter(c=>c.bookingType===bt).length;
                   const rev=records.filter(r=>{const c=getCustomer(r.customerId);return c?.bookingType===bt;}).reduce((s,r)=>s+Number(r.amount),0);
                   if(!cnt)return null;
-                  const btc=BT_COLOR[bt];
+                  const btc=BT[bt];
                   return(
-                    <div key={bt} style={{borderRadius:10,padding:"9px 12px",marginBottom:8,
-                      borderLeft:`3px solid ${btc.color}`,background:btc.bg+"88"}}>
-                      <div style={{display:"flex",justifyContent:"space-between"}}>
-                        <span style={{...Sty.typeBadge,...btc}}>{bt}</span>
-                        <span style={{fontSize:13,fontWeight:700,color:"#1e3a5f"}}>{formatKRW(rev)}</span>
+                    <div key={bt} style={{borderRadius:10,padding:"10px 12px",marginBottom:8,
+                      background:btc.bg,border:`1px solid ${btc.border}`}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <span style={{fontSize:11,fontWeight:700,color:btc.color,letterSpacing:0.5}}>{bt}</span>
+                        <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:0.5,color:btc.color}}>{formatKRW(rev)}</span>
                       </div>
-                      <div style={{fontSize:12,color:"#6b7280",marginTop:4}}>고객 {cnt}명</div>
+                      <div style={{fontSize:11,color:"#4a4540",marginTop:3}}>{cnt}명</div>
                     </div>
                   );
                 })}
@@ -643,7 +742,6 @@ function App(){
         })()}
       </main>
 
-      {/* 예약 모달 */}
       {bookingModal&&(
         <BookingModal modal={bookingModal} customers={customers}
           onSave={async d=>{await saveRecord(d);setBookingModal(null);}}
@@ -652,7 +750,6 @@ function App(){
           onAddCustomer={()=>{setBookingModal(null);setCustModal("new");}}
         />
       )}
-      {/* 고객 모달 */}
       {custModal&&(
         <CustomerModal
           customer={custModal==="new"?null:custModal}
@@ -666,7 +763,18 @@ function App(){
   );
 }
 
-// ── 예약 모달 ────────────────────────────────────────────────
+// ── 공통 필드 컴포넌트 ───────────────────────────────
+function NF({label,children}){
+  return(
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:9,fontWeight:700,color:"#4a4540",letterSpacing:2,marginBottom:8,
+        fontFamily:"'Bebas Neue',sans-serif"}}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+// ── 예약 모달 ────────────────────────────────────────
 function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
   const ex=modal.record, isAD=modal.slot==="종일";
   const [slotType,setSlotType]=useState(isAD?"종일":"시간");
@@ -683,196 +791,212 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
     if(!custId||!services.length||!amount)return alert("고객, 작업내용, 가격을 입력해주세요.");
     const fs=slotType==="종일"?"종일":slotTime;
     if(slotType==="시간"&&!fs)return alert("시간을 선택해주세요.");
-    onSave({id:ex?.id,customerId:String(custId),date:modal.date,slot:fs,
-      multiDay:slotType==="종일"?multiDay:1,services,payment,amount:Number(amount),memo});
+    onSave({id:ex?.id,customerId:String(custId),date:modal.date,slot:fs,multiDay:slotType==="종일"?multiDay:1,services,payment,amount:Number(amount),memo});
   }
+
+  const inputStyle={width:"100%",padding:"10px 12px",border:"1px solid #2a2830",borderRadius:8,fontSize:13,boxSizing:"border-box",background:"#1a1a24",color:"#f0ece0"};
+  const chipBase={padding:"6px 12px",borderRadius:8,border:"1px solid",fontSize:12,cursor:"pointer",fontWeight:600,transition:"all 0.15s"};
+
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:100,
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:100,
       display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:18,width:"100%",
-        maxWidth:520,maxHeight:"92vh",overflowY:"auto",animation:"fadeUp 0.2s ease"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <span style={{fontWeight:700,fontSize:16,color:"#1e3a5f"}}>{ex?"예약 수정":"예약 등록"}</span>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#6b7280"}}>✕</button>
+      <div style={{background:"#111118",borderRadius:"20px 20px 0 0",padding:20,width:"100%",
+        maxWidth:520,maxHeight:"92vh",overflowY:"auto",animation:"fadeUp 0.2s ease",
+        borderTop:"1px solid #c9a84c44",
+        boxShadow:"0 -8px 40px rgba(0,0,0,0.6)"}} onClick={e=>e.stopPropagation()}>
+        {/* 골드 핸들 */}
+        <div style={{width:40,height:3,background:"linear-gradient(90deg,#c9a84c,#e8c96a)",borderRadius:2,margin:"0 auto 16px"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,color:"#c9a84c"}}>
+            {ex?"EDIT BOOKING":"NEW BOOKING"}
+          </span>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"#4a4540"}}>✕</button>
         </div>
 
-        <NF label="📅 예약날짜"><div style={{fontSize:14,fontWeight:600,color:"#111827",padding:"3px 0"}}>{modal.date} ({WD(modal.date)})</div></NF>
+        <NF label="예약날짜">
+          <div style={{fontSize:14,fontWeight:700,color:"#c9a84c",fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>
+            {modal.date.replace(/-/g,".")} · {WD(modal.date)}
+          </div>
+        </NF>
 
-        <NF label="⏰ 예약시간">
+        <NF label="예약시간">
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
             {TIME_SLOTS.map(s=>(
               <button key={s} onClick={()=>{setSlotType("시간");setSlotTime(s);}}
-                style={{padding:"5px 12px",borderRadius:20,border:"1.5px solid",fontSize:12,cursor:"pointer",fontWeight:600,
-                  borderColor:slotType==="시간"&&slotTime===s?SLOT_COLORS[s]:"#e5e7eb",
-                  background:slotType==="시간"&&slotTime===s?SLOT_COLORS[s]:"#fff",
-                  color:slotType==="시간"&&slotTime===s?"#fff":"#374151"}}>{s}</button>
+                style={{...chipBase,borderColor:slotType==="시간"&&slotTime===s?SC[s]:"#2a2830",
+                  background:slotType==="시간"&&slotTime===s?SC[s]+"33":"#1a1a24",
+                  color:slotType==="시간"&&slotTime===s?SC[s]:"#4a4540",
+                  boxShadow:slotType==="시간"&&slotTime===s?`0 0 8px ${SC[s]}66`:"none"}}>{s}</button>
             ))}
             <button onClick={()=>setSlotType("종일")}
-              style={{padding:"5px 12px",borderRadius:20,border:"1.5px solid",fontSize:12,cursor:"pointer",fontWeight:600,
-                borderColor:slotType==="종일"?"#8b5cf6":"#e5e7eb",
-                background:slotType==="종일"?"#8b5cf6":"#fff",
-                color:slotType==="종일"?"#fff":"#374151"}}>🌅 종일</button>
+              style={{...chipBase,borderColor:slotType==="종일"?"#9966cc":"#2a2830",
+                background:slotType==="종일"?"#9966cc33":"#1a1a24",
+                color:slotType==="종일"?"#9966cc":"#4a4540"}}>◆ 종일</button>
           </div>
           {slotType==="종일"&&(
             <div style={{marginTop:10}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#9ca3af",marginBottom:6}}>작업 기간</div>
+              <div style={{fontSize:9,color:"#4a4540",letterSpacing:2,marginBottom:8,fontFamily:"'Bebas Neue',sans-serif"}}>작업기간</div>
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                 {[1,2,3,4,5,6,7].map(d=>(
                   <button key={d} onClick={()=>setMultiDay(d)}
-                    style={{padding:"6px 10px",borderRadius:7,border:"1.5px solid",fontSize:12,cursor:"pointer",
-                      borderColor:multiDay===d?"#dc2626":"#e5e7eb",
-                      background:multiDay===d?"#dc2626":"#fff",
-                      color:multiDay===d?"#fff":"#374151",fontWeight:multiDay===d?700:400}}>{d}일</button>
+                    style={{...chipBase,borderColor:multiDay===d?"#e05555":"#2a2830",
+                      background:multiDay===d?"#e0555533":"#1a1a24",
+                      color:multiDay===d?"#e05555":"#4a4540"}}>{d}일</button>
                 ))}
               </div>
-              {multiDay>1&&<div style={{background:"#fef3c7",borderRadius:7,padding:"7px 10px",fontSize:11,color:"#92400e",fontWeight:600,marginTop:7}}>
-                {modal.date}({WD(modal.date)}) ~ {addDays(modal.date,multiDay-1)}({WD(addDays(modal.date,multiDay-1))}) · {multiDay}일간
+              {multiDay>1&&<div style={{background:"#e0555511",borderRadius:7,padding:"7px 10px",fontSize:11,color:"#e05555",fontWeight:600,marginTop:8,border:"1px solid #e0555533"}}>
+                {modal.date.replace(/-/g,".")}({WD(modal.date)}) ~ {addDays(modal.date,multiDay-1).replace(/-/g,".")}({WD(addDays(modal.date,multiDay-1))}) · {multiDay}일간
               </div>}
             </div>
           )}
         </NF>
 
-        <NF label="👤 고객명">
+        <NF label="고객명">
           <div style={{display:"flex",gap:8}}>
-            <select value={custId} onChange={e=>setCustId(e.target.value)}
-              style={{flex:1,padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:8,fontSize:14}}>
+            <select value={custId} onChange={e=>setCustId(e.target.value)} style={{...inputStyle,flex:1}}>
               <option value="">-- 고객 선택 --</option>
               {customers.map(c=><option key={c.id} value={c.id}>{c.name} ({c.carModel})</option>)}
             </select>
             <button onClick={onAddCustomer}
-              style={{padding:"9px 11px",background:"#f3f4f6",border:"1.5px solid #e5e7eb",borderRadius:8,fontSize:12,cursor:"pointer"}}>+ 신규</button>
+              style={{...chipBase,borderColor:"#2a2830",background:"#1a1a24",color:"#4a4540",whiteSpace:"nowrap"}}>+ 신규</button>
           </div>
         </NF>
 
         {selCust&&(
           <>
-            <NF label="🏷️ 예약구분"><span style={{...Sty.typeBadge,...BT_COLOR[selCust.bookingType]}}>{selCust.bookingType}</span></NF>
-            <NF label="🚗 차종"><div style={{fontSize:14,fontWeight:600,color:"#111827"}}>{selCust.carModel}</div></NF>
+            <NF label="예약구분">
+              <span style={{fontSize:11,fontWeight:700,background:BT[selCust.bookingType]?.bg,
+                color:BT[selCust.bookingType]?.color,padding:"3px 10px",borderRadius:6,
+                border:`1px solid ${BT[selCust.bookingType]?.border}`}}>{selCust.bookingType}</span>
+            </NF>
+            <NF label="차종">
+              <div style={{fontSize:13,fontWeight:600,color:"#c9a84c"}}>{selCust.carModel}</div>
+            </NF>
           </>
         )}
 
-        <NF label="🔧 작업내용">
+        <NF label="작업내용">
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
             {SERVICES.map(s=>(
               <button key={s} onClick={()=>toggle(s)}
-                style={{padding:"5px 12px",borderRadius:20,border:"1.5px solid",fontSize:12,cursor:"pointer",
-                  borderColor:services.includes(s)?"#1e3a5f":"#e5e7eb",
-                  background:services.includes(s)?"#1e3a5f":"#fff",
-                  color:services.includes(s)?"#fff":"#374151"}}>{s}</button>
+                style={{...chipBase,borderColor:services.includes(s)?"#c9a84c":"#2a2830",
+                  background:services.includes(s)?"#c9a84c22":"#1a1a24",
+                  color:services.includes(s)?"#c9a84c":"#4a4540",
+                  boxShadow:services.includes(s)?"0 0 8px #c9a84c33":"none"}}>{s}</button>
             ))}
           </div>
         </NF>
 
-        <NF label="💰 가격">
-          <input type="number" placeholder="예: 80000" value={amount} onChange={e=>setAmount(e.target.value)}
-            style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/>
-          {amount&&<span style={{fontSize:12,color:"#2d6a9f",fontWeight:600,marginTop:4,display:"block"}}>{formatKRW(amount)}</span>}
+        <NF label="가격">
+          <input type="number" placeholder="예: 80000" value={amount} onChange={e=>setAmount(e.target.value)} style={inputStyle}/>
+          {amount&&<span style={{fontSize:12,color:"#c9a84c",fontWeight:700,marginTop:5,display:"block",fontFamily:"'Bebas Neue',sans-serif",letterSpacing:0.5}}>{formatKRW(amount)}</span>}
         </NF>
 
-        <NF label="💳 결제구분">
+        <NF label="결제구분">
           <div style={{display:"flex",gap:7}}>
             {PAYMENTS.map(p=>(
               <button key={p} onClick={()=>setPayment(p)}
-                style={{padding:"5px 14px",borderRadius:20,border:"1.5px solid",fontSize:12,cursor:"pointer",
-                  borderColor:payment===p?"#1e3a5f":"#e5e7eb",
-                  background:payment===p?"#1e3a5f":"#fff",
-                  color:payment===p?"#fff":"#374151"}}>{p}</button>
+                style={{...chipBase,borderColor:payment===p?"#c9a84c":"#2a2830",
+                  background:payment===p?"#c9a84c22":"#1a1a24",
+                  color:payment===p?"#c9a84c":"#4a4540"}}>{p}</button>
             ))}
           </div>
         </NF>
 
-        <NF label="📝 비고">
+        <NF label="비고">
           <textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항..."
-            style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:8,
-              fontSize:13,boxSizing:"border-box",minHeight:60,resize:"vertical"}}/>
+            style={{...inputStyle,minHeight:60,resize:"vertical"}}/>
         </NF>
 
-        <div style={{display:"flex",gap:10,marginTop:10}}>
+        <div style={{display:"flex",gap:10,marginTop:12}}>
           {ex&&<button onClick={()=>{if(window.confirm("삭제할까요?"))onDelete(ex.id);}}
-            style={{padding:"12px 14px",background:"#fee2e2",color:"#ef4444",border:"none",borderRadius:10,fontSize:13,fontWeight:600,cursor:"pointer"}}>삭제</button>}
+            style={{padding:"12px 14px",background:"#e0555522",color:"#e05555",border:"1px solid #e0555544",
+              borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>삭제</button>}
           <button onClick={handleSave}
-            style={{flex:1,padding:"12px",background:"#1e3a5f",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}>저장</button>
+            style={{flex:1,padding:"13px",background:"linear-gradient(135deg,#c9a84c,#e8c96a)",
+              color:"#0a0a0f",border:"none",borderRadius:10,fontSize:14,fontWeight:900,cursor:"pointer",
+              boxShadow:"0 4px 16px #c9a84c44",fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>
+            SAVE
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── 고객 모달 ────────────────────────────────────────────────
+// ── 고객 모달 ────────────────────────────────────────
 function CustomerModal({customer,records,onSave,onDelete,onClose}){
   const [name,setName]=useState(customer?.name||"");
   const [phone,setPhone]=useState(customer?.phone||"");
   const [carModel,setCarModel]=useState(customer?.carModel||"");
   const [bookingType,setBookingType]=useState(customer?.bookingType||"신규");
   const [memo,setMemo]=useState(customer?.memo||"");
+
+  const inputStyle={width:"100%",padding:"10px 12px",border:"1px solid #2a2830",borderRadius:8,fontSize:13,boxSizing:"border-box",background:"#1a1a24",color:"#f0ece0"};
+  const chipBase={padding:"6px 12px",borderRadius:8,border:"1px solid",fontSize:12,cursor:"pointer",fontWeight:600};
+
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:100,
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:100,
       display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:18,width:"100%",
-        maxWidth:520,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <span style={{fontWeight:700,fontSize:16,color:"#1e3a5f"}}>{customer?"고객 수정":"신규 고객 등록"}</span>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#6b7280"}}>✕</button>
+      <div style={{background:"#111118",borderRadius:"20px 20px 0 0",padding:20,width:"100%",
+        maxWidth:520,maxHeight:"92vh",overflowY:"auto",
+        borderTop:"1px solid #c9a84c44",boxShadow:"0 -8px 40px rgba(0,0,0,0.6)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{width:40,height:3,background:"linear-gradient(90deg,#c9a84c,#e8c96a)",borderRadius:2,margin:"0 auto 16px"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,color:"#c9a84c"}}>
+            {customer?"EDIT CLIENT":"NEW CLIENT"}
+          </span>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"#4a4540"}}>✕</button>
         </div>
-        <NF label="👤 고객명 *"><input value={name} onChange={e=>setName(e.target.value)} placeholder="홍길동"
-          style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></NF>
-        <NF label="📞 연락처 *"><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="010-0000-0000"
-          style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></NF>
-        <NF label="🚗 차종"><input value={carModel} onChange={e=>setCarModel(e.target.value)} placeholder="아반떼, 포르쉐 911 등"
-          style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></NF>
-        <NF label="🏷️ 예약구분">
+
+        <NF label="고객명 *"><input value={name} onChange={e=>setName(e.target.value)} placeholder="홍길동" style={inputStyle}/></NF>
+        <NF label="연락처 *"><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="010-0000-0000" style={inputStyle}/></NF>
+        <NF label="차종"><input value={carModel} onChange={e=>setCarModel(e.target.value)} placeholder="아반떼, 포르쉐 911 등" style={inputStyle}/></NF>
+
+        <NF label="예약구분">
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-            {BOOKING_TYPES.map(bt=>{const c=BT_COLOR[bt];return(
+            {BOOKING_TYPES.map(bt=>{const c=BT[bt];return(
               <button key={bt} onClick={()=>setBookingType(bt)}
-                style={{padding:"5px 12px",borderRadius:20,border:"1.5px solid",fontSize:12,cursor:"pointer",
-                  borderColor:bookingType===bt?c.color:"#e5e7eb",
-                  background:bookingType===bt?c.color:"#fff",
-                  color:bookingType===bt?"#fff":"#374151"}}>{bt}</button>
+                style={{...chipBase,borderColor:bookingType===bt?c.color:"#2a2830",
+                  background:bookingType===bt?c.bg:"#1a1a24",color:bookingType===bt?c.color:"#4a4540"}}>{bt}</button>
             );})}
           </div>
         </NF>
-        <NF label="📝 메모"><textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항 등..."
-          style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:8,
-            fontSize:13,boxSizing:"border-box",minHeight:60,resize:"vertical"}}/></NF>
+
+        <NF label="메모"><textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항 등..."
+          style={{...inputStyle,minHeight:60,resize:"vertical"}}/></NF>
+
         {records&&records.length>0&&(
-          <NF label={`📋 방문 이력 (${records.length}건)`}>
-            <div style={{maxHeight:140,overflowY:"auto",border:"1px solid #e5e7eb",borderRadius:8}}>
+          <NF label={`방문이력 · ${records.length}건`}>
+            <div style={{maxHeight:140,overflowY:"auto",border:"1px solid #1a1a24",borderRadius:8}}>
               {[...records].sort((a,b)=>b.date.localeCompare(a.date)).map(r=>(
                 <div key={r.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",
-                  borderBottom:"1px solid #f3f4f6",gap:6,alignItems:"center"}}>
-                  <span style={{fontSize:12,color:"#374151"}}>{r.date} {r.slot}</span>
-                  <span style={{fontSize:11,color:"#6b7280",flex:1,textAlign:"center"}}>{(r.services||[]).join(", ")}</span>
-                  <span style={{fontSize:12,fontWeight:600,color:"#1e3a5f"}}>{formatKRW(r.amount)}</span>
+                  borderBottom:"1px solid #1a1a24",gap:6,alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"#6a6460"}}>{r.date} {r.slot}</span>
+                  <span style={{fontSize:10,color:"#4a4540",flex:1,textAlign:"center"}}>{(r.services||[]).join(", ")}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:"#c9a84c"}}>{formatKRW(r.amount)}</span>
                 </div>
               ))}
             </div>
           </NF>
         )}
+
         <div style={{display:"flex",gap:10,marginTop:16}}>
           {customer&&<button onClick={()=>{if(window.confirm("삭제할까요?"))onDelete(customer.id);}}
-            style={{padding:"12px 14px",background:"#fee2e2",color:"#ef4444",border:"none",borderRadius:10,fontSize:13,fontWeight:600,cursor:"pointer"}}>삭제</button>}
+            style={{padding:"12px 14px",background:"#e0555522",color:"#e05555",border:"1px solid #e0555544",
+              borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>삭제</button>}
           <button onClick={()=>{if(!name||!phone)return alert("이름과 연락처를 입력해주세요.");
             onSave({id:customer?.id,name,phone,carModel,bookingType,memo});}}
-            style={{flex:1,padding:"12px",background:"#1e3a5f",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}>저장</button>
+            style={{flex:1,padding:"13px",background:"linear-gradient(135deg,#c9a84c,#e8c96a)",
+              color:"#0a0a0f",border:"none",borderRadius:10,fontSize:14,fontWeight:900,cursor:"pointer",
+              boxShadow:"0 4px 16px #c9a84c44",fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>
+            SAVE
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
-// ── 공통 컴포넌트 & 스타일 ───────────────────────────────────
-function NF({label,children}){
-  return(
-    <div style={{marginBottom:14}}>
-      <div style={{fontSize:10,fontWeight:700,color:"#9ca3af",letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>{label}</div>
-      {children}
-    </div>
-  );
-}
-const Sty = {
-  typeBadge:{fontSize:10,borderRadius:8,padding:"2px 7px",fontWeight:700},
-  panelLbl:{fontSize:10,fontWeight:700,color:"#9ca3af",letterSpacing:0.5,marginBottom:7,textTransform:"uppercase"},
-};
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
