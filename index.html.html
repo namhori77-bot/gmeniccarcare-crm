@@ -206,34 +206,68 @@ function useData(db){
 }
 
 // ── 매출 패널 ────────────────────────────────────────
-function SalesPanel({records,selectedDate,onClose}){
+function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
   const ref=useRef(null);
+
+  // 각 섹션별 독립 날짜 상태
+  const [dayDate,setDayDate]=useState(selectedDate);
+  const [weekDate,setWeekDate]=useState(selectedDate);
+  const [monthY,setMonthY]=useState(calYear);
+  const [monthM,setMonthM]=useState(calMonth);
+
+  // 달력 월 변경 시 월매출도 동기화
+  useEffect(()=>{ setMonthY(calYear); setMonthM(calMonth); },[calYear,calMonth]);
+  useEffect(()=>{ setDayDate(selectedDate); setWeekDate(selectedDate); },[selectedDate]);
+
   useEffect(()=>{
     const h=e=>{ if(ref.current&&!ref.current.contains(e.target)) onClose(); };
     setTimeout(()=>document.addEventListener("mousedown",h),50);
     return()=>document.removeEventListener("mousedown",h);
   },[onClose]);
-  const stats=useMemo(()=>{
-    const now=new Date(), tm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-    const wk=getWeekDates(selectedDate), wkS=wk[0], wkE=wk[6];
-    const dayR=records.filter(r=>r.date===selectedDate);
-    const wkR=records.filter(r=>r.date>=wkS&&r.date<=wkE);
-    const moR=records.filter(r=>r.date.startsWith(tm));
-    const sum=a=>a.reduce((s,r)=>s+Number(r.amount),0);
+
+  // 일 매출
+  const dayStats=useMemo(()=>{
+    const dayR=records.filter(r=>r.date===dayDate);
+    const sum=dayR.reduce((s,r)=>s+Number(r.amount),0);
     const byPay={}; PAYMENTS.forEach(p=>byPay[p]=0);
     dayR.forEach(r=>{byPay[r.payment]=(byPay[r.payment]||0)+Number(r.amount);});
-    const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-    return{
-      day:{total:sum(dayR),count:dayR.length,byPay},
-      week:{total:sum(wkR),count:wkR.length,label:`${wkS.slice(5).replace("-",".")}~${wkE.slice(5).replace("-",".")}`},
-      month:{total:sum(moR),count:moR.length,pct:Math.round((now.getDate()/dim)*100),label:`${now.getFullYear()}.${now.getMonth()+1}`},
-    };
-  },[records,selectedDate]);
+    return{total:sum,count:dayR.length,byPay};
+  },[records,dayDate]);
 
-  const GoldNum = ({v,size=28})=>(
-    <div style={{fontSize:size,fontWeight:900,background:`linear-gradient(135deg, #f5e0a0, #c9a84c)`,
-      WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1.2,fontFamily:"'Bebas Neue',sans-serif",
-      letterSpacing:1}}>{v}</div>
+  // 주 매출
+  const weekStats=useMemo(()=>{
+    const wk=getWeekDates(weekDate), wkS=wk[0], wkE=wk[6];
+    const wkR=records.filter(r=>r.date>=wkS&&r.date<=wkE);
+    return{total:wkR.reduce((s,r)=>s+Number(r.amount),0),count:wkR.length,
+      label:`${wkS.slice(5).replace("-",".")}~${wkE.slice(5).replace("-",".")}`,
+      start:wkS,end:wkE};
+  },[records,weekDate]);
+
+  // 월 매출
+  const monthStats=useMemo(()=>{
+    const tm=`${monthY}-${String(monthM+1).padStart(2,"0")}`;
+    const moR=records.filter(r=>r.date.startsWith(tm));
+    const now=new Date();
+    const isCurrentMonth=(monthY===now.getFullYear()&&monthM===now.getMonth());
+    const dim=new Date(monthY,monthM+1,0).getDate();
+    const pct=isCurrentMonth?Math.round((now.getDate()/dim)*100):100;
+    return{total:moR.reduce((s,r)=>s+Number(r.amount),0),count:moR.length,
+      label:`${monthY}.${String(monthM+1).padStart(2,"0")}`,pct,isCurrentMonth};
+  },[records,monthY,monthM]);
+
+  const GoldNum=({v,size=28})=>(
+    <div style={{fontSize:size,fontWeight:900,
+      background:"linear-gradient(135deg,#f5e0a0,#c9a84c)",
+      WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
+      lineHeight:1.2,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>{v}</div>
+  );
+
+  const NavRow=({onPrev,onNext,label})=>(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+      <button onClick={onPrev} style={{background:"none",border:"none",color:"#c9a84c",fontSize:16,cursor:"pointer",padding:"0 4px"}}>‹</button>
+      <span style={{fontSize:10,fontWeight:700,color:"#c9a84c",letterSpacing:1}}>{label}</span>
+      <button onClick={onNext} style={{background:"none",border:"none",color:"#c9a84c",fontSize:16,cursor:"pointer",padding:"0 4px"}}>›</button>
+    </div>
   );
 
   return(
@@ -245,60 +279,64 @@ function SalesPanel({records,selectedDate,onClose}){
         boxShadow:"8px 0 40px rgba(0,0,0,0.6)",
         padding:"24px 20px",display:"flex",flexDirection:"column",overflowY:"auto",
         animation:"slideIn 0.25s ease"}}>
-        {/* 골드 라인 */}
         <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,#c9a84c,transparent)"}}/>
         <div style={{width:36,height:3,background:"linear-gradient(90deg,#c9a84c,#e8c96a)",borderRadius:2,margin:"0 auto 20px"}}/>
-
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:3,
           background:"linear-gradient(135deg,#f5e0a0,#c9a84c)",WebkitBackgroundClip:"text",
-          WebkitTextFillColor:"transparent",marginBottom:24}}>
-          REVENUE
-        </div>
+          WebkitTextFillColor:"transparent",marginBottom:20}}>REVENUE</div>
 
         {/* 일 매출 */}
-        <div style={{marginBottom:4,padding:"16px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830"}}>
-          <div style={{fontSize:10,fontWeight:700,color:"#c9a84c",letterSpacing:2,marginBottom:10,textTransform:"uppercase"}}>
-            TODAY · {selectedDate.slice(5).replace("-",".")} {WD(selectedDate)}
-          </div>
-          <GoldNum v={formatKRW(stats.day.total)} size={30}/>
-          <div style={{fontSize:12,color:"#8a8070",marginTop:4,marginBottom:stats.day.total>0?10:0}}>{stats.day.count}건</div>
-          {stats.day.total>0&&(
+        <div style={{padding:"14px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830",marginBottom:4}}>
+          <NavRow
+            label={`DAY · ${dayDate.slice(5).replace("-",".")} ${WD(dayDate)}`}
+            onPrev={()=>setDayDate(d=>addDays(d,-1))}
+            onNext={()=>setDayDate(d=>addDays(d,1))}
+          />
+          <GoldNum v={formatKRW(dayStats.total)} size={26}/>
+          <div style={{fontSize:11,color:"#8a8070",marginTop:3,marginBottom:dayStats.total>0?8:0}}>{dayStats.count}건</div>
+          {dayStats.total>0&&(
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {PAYMENTS.map(p=>stats.day.byPay[p]>0&&(
+              {PAYMENTS.map(p=>dayStats.byPay[p]>0&&(
                 <span key={p} style={{fontSize:10,background:"#c9a84c22",color:"#c9a84c",
                   padding:"2px 8px",borderRadius:6,fontWeight:600,border:"1px solid #c9a84c33"}}>
-                  {p} {formatKRW(stats.day.byPay[p])}
+                  {p} {formatKRW(dayStats.byPay[p])}
                 </span>
               ))}
             </div>
           )}
         </div>
 
-        <div style={{height:1,background:"linear-gradient(90deg,transparent,#2a2830,transparent)",margin:"14px 0"}}/>
+        <div style={{height:1,background:"linear-gradient(90deg,transparent,#2a2830,transparent)",margin:"12px 0"}}/>
 
         {/* 주 매출 */}
-        <div style={{marginBottom:4,padding:"14px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830"}}>
-          <div style={{fontSize:10,fontWeight:700,color:"#8a8070",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>
-            WEEK · {stats.week.label}
-          </div>
-          <GoldNum v={formatKRW(stats.week.total)} size={22}/>
-          <div style={{fontSize:12,color:"#8a8070",marginTop:4}}>{stats.week.count}건</div>
+        <div style={{padding:"14px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830",marginBottom:4}}>
+          <NavRow
+            label={`WEEK · ${weekStats.label}`}
+            onPrev={()=>setWeekDate(d=>addDays(d,-7))}
+            onNext={()=>setWeekDate(d=>addDays(d,7))}
+          />
+          <GoldNum v={formatKRW(weekStats.total)} size={22}/>
+          <div style={{fontSize:11,color:"#8a8070",marginTop:3}}>{weekStats.count}건</div>
         </div>
 
-        <div style={{height:1,background:"linear-gradient(90deg,transparent,#2a2830,transparent)",margin:"14px 0"}}/>
+        <div style={{height:1,background:"linear-gradient(90deg,transparent,#2a2830,transparent)",margin:"12px 0"}}/>
 
         {/* 월 매출 */}
         <div style={{padding:"14px",background:"#1a1a24",borderRadius:12,border:"1px solid #2a2830"}}>
-          <div style={{fontSize:10,fontWeight:700,color:"#8a8070",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>
-            MONTH · {stats.month.label}
-          </div>
-          <GoldNum v={formatKRW(stats.month.total)} size={22}/>
-          <div style={{fontSize:12,color:"#8a8070",marginTop:4,marginBottom:12}}>{stats.month.count}건</div>
+          <NavRow
+            label={`MONTH · ${monthStats.label}`}
+            onPrev={()=>{ if(monthM===0){setMonthY(y=>y-1);setMonthM(11);}else setMonthM(m=>m-1); }}
+            onNext={()=>{ if(monthM===11){setMonthY(y=>y+1);setMonthM(0);}else setMonthM(m=>m+1); }}
+          />
+          <GoldNum v={formatKRW(monthStats.total)} size={22}/>
+          <div style={{fontSize:11,color:"#8a8070",marginTop:3,marginBottom:10}}>{monthStats.count}건</div>
           <div style={{height:4,background:"#2a2830",borderRadius:2}}>
             <div style={{height:4,background:"linear-gradient(90deg,#c9a84c,#e8c96a)",borderRadius:2,
-              width:`${stats.month.pct}%`,transition:"width 0.6s ease",boxShadow:"0 0 8px #c9a84c88"}}/>
+              width:`${monthStats.pct}%`,transition:"width 0.6s",boxShadow:"0 0 8px #c9a84c88"}}/>
           </div>
-          <div style={{fontSize:11,color:"#c9a84c",marginTop:5,textAlign:"right",fontWeight:600}}>{stats.month.pct}%</div>
+          <div style={{fontSize:11,color:"#c9a84c",marginTop:4,textAlign:"right",fontWeight:600}}>
+            {monthStats.isCurrentMonth?`${monthStats.pct}% 경과`:"완료"}
+          </div>
         </div>
 
         <button onClick={onClose} style={{marginTop:"auto",paddingTop:20,background:"none",border:"none",
@@ -360,24 +398,29 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                       display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0,
                       lineHeight:1}}>+</button>
                 </div>
-                {/* 종일 */}
+                {/* 종일/다일 작업 - 고객명 연속 표시 */}
                 {allDayItem&&(
-                  <div style={{fontSize:10,fontWeight:700,borderRadius:3,padding:"2px 5px",marginBottom:3,
-                    background:isContDay?"#c9a84c22":"#9966cc33",
-                    color:isContDay?"#c9a84c":"#9966cc",
-                    border:`1px solid ${isContDay?"#c9a84c44":"#9966cc44"}`,
-                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                    {isContDay?"↩작업중":`◆${allDayItem._custName||"종일"}`}
+                  <div style={{
+                    fontSize:10,fontWeight:700,borderRadius:3,padding:"2px 5px",marginBottom:3,
+                    background:"#9966cc33",
+                    color:"#c9a84c",
+                    border:`1px solid #9966cc44`,
+                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                    // 시작일: 왼쪽 둥글게 / 연속일: 직각 / 마지막날: 오른쪽 둥글게
+                    borderRadius: !isContDay ? "4px 4px 4px 4px" : "0px 4px 4px 0px",
+                    marginLeft: isContDay ? "-5px" : "0px",
+                    paddingLeft: isContDay ? "8px" : "5px",
+                  }}>
+                    {allDayItem._custName||"종일"}
                   </div>
                 )}
-                {/* 시간 예약 */}
+                {/* 시간 예약 - 고객명만 */}
                 {timeItems.slice(0,isWeek?4:3).map((r,ri)=>(
                   <div key={ri} style={{fontSize:10,borderRadius:3,padding:"2px 5px",marginBottom:2,
                     background:(SC[r.slot]||"#999")+"22",
                     borderLeft:`2px solid ${SC[r.slot]||"#999"}`,
                     whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-                    color:"#c0b89a",fontWeight:500}}>
-                    <span style={{color:SC[r.slot]||"#999",fontWeight:700,fontSize:9}}>{r.slot} </span>
+                    color:"#c0b89a",fontWeight:600}}>
                     {r._custName||"예약"}
                   </div>
                 ))}
@@ -504,7 +547,7 @@ function App(){
         </div>
       </header>
 
-      {showSales&&<SalesPanel records={records} selectedDate={selDate} onClose={closeSales}/>}
+      {showSales&&<SalesPanel records={records} selectedDate={selDate} calYear={calY} calMonth={calM} onClose={closeSales}/>}
 
       {/* ── 탭 ── */}
       <nav style={{display:"flex",background:"#0d0d14",borderBottom:"1px solid #1a1a24"}}>
