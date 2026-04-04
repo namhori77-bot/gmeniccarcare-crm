@@ -109,6 +109,15 @@ const BT={
 };
 const SC={"10:00":"#3b82f6","13:00":"#f59e0b","16:00":"#22c55e","종일":"#8b5cf6"};
 
+// 금액대별 색상 (달력 셀 예약 칩용)
+function amtColor(amount){
+  const a=Number(amount)||0;
+  if(a>=500000) return {bg:"#fef2f2",border:"#ef4444",text:"#b91c1c"};  // 50만↑ 빨강
+  if(a>=200000) return {bg:"#fff7ed",border:"#f97316",text:"#c2410c"};  // 20~50만 주황
+  if(a>=140000) return {bg:"#fefce8",border:"#eab308",text:"#a16207"};  // 14~20만 노랑
+  return          {bg:"#eff6ff",border:"#3b82f6",text:"#1d4ed8"};       // ~13만 파랑
+}
+
 // ── 날짜 유틸 ─────────────────────────────────────────
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const formatKRW=n=>Number(n).toLocaleString("ko-KR")+"원";
@@ -345,16 +354,19 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                   );
                 })()}
 
-                {/* 시간 예약 */}
-                {timeItems.slice(0,isWeek?4:2).map((r,ri)=>(
-                  <div key={ri} style={{fontSize:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
-                    background:(SC[r.slot]||"#999")+"18",borderLeft:`2px solid ${SC[r.slot]||"#999"}`,
-                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-                    color:"#334155",fontWeight:600}}>
-                    <span style={{color:SC[r.slot]||"#999",fontWeight:800,fontSize:8,marginRight:2}}>{r.slot}</span>
-                    {r._custName||"예약"}
-                  </div>
-                ))}
+                {/* 시간 예약 - 금액대별 색상 */}
+                {timeItems.slice(0,isWeek?4:2).map((r,ri)=>{
+                  const ac=amtColor(r.amount);
+                  return(
+                    <div key={ri} style={{fontSize:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
+                      background:ac.bg,borderLeft:`2px solid ${ac.border}`,
+                      whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                      color:ac.text,fontWeight:600}}>
+                      <span style={{fontWeight:800,fontSize:8,marginRight:2,opacity:0.7}}>{r.slot}</span>
+                      {r._custName||"예약"}
+                    </div>
+                  );
+                })}
                 {timeItems.length>(isWeek?4:2)&&<div style={{fontSize:8,color:"#94a3b8",paddingLeft:3}}>+{timeItems.length-(isWeek?4:2)}</div>}
               </div>
             );
@@ -369,18 +381,47 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
 function CustomerSearch({customers,records,onEdit}){
   const [query,setQuery]=useState("");
   const [selected,setSelected]=useState(null);
+
+  // 최근 작업순 정렬된 고객 목록
+  const sortedCustomers=useMemo(()=>{
+    const lastDateMap={};
+    records.forEach(r=>{
+      const cid=String(r.customerId);
+      if(!lastDateMap[cid]||r.date>lastDateMap[cid]) lastDateMap[cid]=r.date;
+    });
+    return [...customers].sort((a,b)=>{
+      const da=lastDateMap[a.id]||"0000-00-00";
+      const db=lastDateMap[b.id]||"0000-00-00";
+      return db.localeCompare(da);
+    });
+  },[customers,records]);
+
+  // 검색 결과
   const results=useMemo(()=>{
+    if(query.length<2) return [];
     const q=query.replace(/[^\d]/g,"");
-    if(query.length<2)return[];
-    return customers.filter(c=>{
+    const nameQ=query.toLowerCase();
+    return sortedCustomers.filter(c=>{
       const cp=(c.phone||"").replace(/[^\d]/g,"");
-      return cp.endsWith(q)||cp.includes(q)||(c.name||"").includes(query);
+      const nameMatch=(c.name||"").toLowerCase().includes(nameQ);
+      const phoneMatch=q.length>=2&&(cp.endsWith(q)||cp.includes(q));
+      return nameMatch||phoneMatch;
     }).slice(0,20);
-  },[query,customers]);
+  },[query,sortedCustomers]);
+
+  // 선택 고객 최신 유지 (onEdit 후 데이터 변경 시 반영)
+  const freshSelected=useMemo(()=>{
+    if(!selected) return null;
+    return customers.find(c=>c.id===selected.id)||selected;
+  },[selected,customers]);
+
   const selRecs=useMemo(()=>{
-    if(!selected)return[];
-    return records.filter(r=>r.customerId===selected.id||r.customerId===String(selected.id)).sort((a,b)=>b.date.localeCompare(a.date));
-  },[selected,records]);
+    if(!freshSelected) return [];
+    return records
+      .filter(r=>r.customerId===freshSelected.id||r.customerId===String(freshSelected.id))
+      .sort((a,b)=>b.date.localeCompare(a.date));
+  },[freshSelected,records]);
+
   const totalPaid=selRecs.reduce((s,r)=>s+Number(r.amount),0);
 
   const iStyle={width:"100%",padding:"11px 14px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,
@@ -388,10 +429,13 @@ function CustomerSearch({customers,records,onEdit}){
 
   return(
     <div>
+      {/* 검색창 */}
       <div style={{position:"relative",marginBottom:12}}>
         <input placeholder="🔍 전화번호 뒷4자리 또는 고객명 검색" value={query}
           onChange={e=>{setQuery(e.target.value);setSelected(null);}}
           style={{...iStyle,border:query?"1.5px solid #1e293b":"1.5px solid #e2e8f0"}}/>
+
+        {/* 검색 드롭다운 */}
         {results.length>0&&!selected&&(
           <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,
             background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,
@@ -403,7 +447,7 @@ function CustomerSearch({customers,records,onEdit}){
               return(
                 <div key={c.id} onClick={()=>{setSelected(c);setQuery(c.name||c.phone);}}
                   style={{padding:"11px 14px",cursor:"pointer",borderBottom:"1px solid #f1f5f9",
-                    display:"flex",justifyContent:"space-between",alignItems:"center",transition:"background 0.1s"}}
+                    display:"flex",justifyContent:"space-between",alignItems:"center"}}
                   onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
                   onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
                   <div>
@@ -429,16 +473,16 @@ function CustomerSearch({customers,records,onEdit}){
       </div>
 
       {/* 선택된 고객 상세 */}
-      {selected&&(
+      {freshSelected&&(
         <div style={{background:"#fff",borderRadius:12,border:"1.5px solid #1e293b",padding:"16px",animation:"fadeUp 0.2s ease",boxShadow:"0 4px 16px rgba(0,0,0,0.08)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
-              {selected.name&&<div style={{fontSize:18,fontWeight:800,color:"#0f172a"}}>{selected.name}</div>}
-              <div style={{fontSize:13,fontWeight:600,color:"#475569",marginTop:2}}>{selected.phone}</div>
-              <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{(selected.cars||[]).join(" · ")||"차종 없음"}</div>
+              {freshSelected.name&&<div style={{fontSize:18,fontWeight:800,color:"#0f172a"}}>{freshSelected.name}</div>}
+              <div style={{fontSize:13,fontWeight:600,color:"#475569",marginTop:2}}>{freshSelected.phone}</div>
+              <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{(freshSelected.cars||[]).join(" · ")||"차종 없음"}</div>
             </div>
             <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>onEdit(selected)}
+              <button onClick={()=>onEdit(freshSelected)}
                 style={{background:"#1e293b",border:"none",color:"#fff",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>수정</button>
               <button onClick={()=>{setSelected(null);setQuery("");}}
                 style={{background:"none",border:"1px solid #e2e8f0",color:"#94a3b8",borderRadius:7,padding:"5px 8px",fontSize:14,cursor:"pointer"}}>✕</button>
@@ -464,36 +508,38 @@ function CustomerSearch({customers,records,onEdit}){
             <div style={{fontSize:13,color:"#cbd5e1",textAlign:"center",padding:"20px 0"}}>방문 기록 없음</div>
           ):(
             <div style={{maxHeight:"45vh",overflowY:"auto"}}>
-              {selRecs.map((r,i)=>(
-                <div key={r.id} style={{borderLeft:"2px solid #e2e8f0",paddingLeft:12,marginBottom:14,paddingBottom:14,borderBottom:i<selRecs.length-1?"1px solid #f1f5f9":"none"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{r.date.replace(/-/g,".")}</span>
-                      <span style={{fontSize:10,color:SC[r.slot]||"#64748b",fontWeight:700,background:(SC[r.slot]||"#666")+"15",padding:"1px 6px",borderRadius:4}}>{r.slot}{r.multiDay>1?` · ${r.multiDay}일`:""}
-                      </span>
+              {selRecs.map((r,i)=>{
+                const ac=amtColor(r.amount);
+                return(
+                  <div key={r.id} style={{borderLeft:`3px solid ${ac.border}`,paddingLeft:12,marginBottom:14,paddingBottom:14,borderBottom:i<selRecs.length-1?"1px solid #f1f5f9":"none"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{r.date.replace(/-/g,".")}</span>
+                        <span style={{fontSize:10,color:"#64748b",fontWeight:600,background:"#f1f5f9",padding:"1px 6px",borderRadius:4}}>{r.slot}{r.multiDay>1?` · ${r.multiDay}일`:""}</span>
+                      </div>
+                      <span style={{fontSize:13,fontWeight:800,color:ac.text,background:ac.bg,padding:"2px 8px",borderRadius:6}}>{formatKRW(r.amount)}</span>
                     </div>
-                    <span style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>{formatKRW(r.amount)}</span>
+                    {r.carModel&&<div style={{fontSize:11,color:"#64748b",marginBottom:4}}>🚗 {r.carModel}</div>}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:4}}>
+                      {(r.services||[]).map(s=>(
+                        <span key={s} style={{fontSize:10,background:"#f1f5f9",color:"#475569",padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0"}}>{s}</span>
+                      ))}
+                    </div>
+                    <div style={{fontSize:11,color:"#94a3b8"}}>{r.payment}</div>
+                    {r.memo&&<div style={{fontSize:11,color:"#64748b",marginTop:4,background:"#f8fafc",padding:"4px 8px",borderRadius:5}}>📝 {r.memo}</div>}
                   </div>
-                  {r.carModel&&<div style={{fontSize:11,color:"#64748b",marginBottom:4}}>🚗 {r.carModel}</div>}
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:4}}>
-                    {(r.services||[]).map(s=>(
-                      <span key={s} style={{fontSize:10,background:"#f1f5f9",color:"#475569",padding:"2px 7px",borderRadius:5,border:"1px solid #e2e8f0"}}>{s}</span>
-                    ))}
-                  </div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>{r.payment}</div>
-                  {r.memo&&<div style={{fontSize:11,color:"#64748b",marginTop:4,background:"#f8fafc",padding:"4px 8px",borderRadius:5}}>📝 {r.memo}</div>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* 전체 목록 */}
+      {/* 전체 목록 - 최근작업순 */}
       {!query&&(
         <div>
-          {customers.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:"#cbd5e1",fontSize:13}}>NO CUSTOMERS YET</div>}
-          {customers.map(c=>{
+          {sortedCustomers.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:"#cbd5e1",fontSize:13}}>NO CUSTOMERS YET</div>}
+          {sortedCustomers.map(c=>{
             const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
             const total=cRecs.reduce((s,r)=>s+Number(r.amount),0);
             const last=[...cRecs].sort((a,b)=>b.date.localeCompare(a.date))[0];
@@ -510,7 +556,7 @@ function CustomerSearch({customers,records,onEdit}){
                 </div>
                 {/* 2줄: 전화번호 + 예약뱃지 */}
                 <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                  <span style={{fontSize:11,color:"#64748b"}}>{c.phone}</span>
+                  <span style={{fontSize:11,color:"#64748b"}}>{c.phone||"번호없음"}</span>
                   <span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`,flexShrink:0}}>{c.bookingType}</span>
                 </div>
                 {/* 3줄: 차종 */}
@@ -679,27 +725,8 @@ function AnalyticsTab({records,customers,getCustomer}){
         </div>
       </div>
 
-      {/* 작업내용 TOP 10 */}
-      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
-          작업내용 TOP 10 · {selYear}
-        </div>
-        {topSvcs.length===0?<div style={{fontSize:13,color:"#94a3b8"}}>데이터 없음</div>:
-        topSvcs.map(([svc,cnt])=>(
-          <div key={svc} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
-              <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{cnt}건</span>
-            </div>
-            <div style={{height:6,background:"#f1f5f9",borderRadius:3}}>
-              <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${(cnt/maxSvc)*100}%`,transition:"width 0.5s"}}/>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* 예약구분별 현황 */}
-      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>예약구분별 · {selYear}</div>
         {BOOKING_TYPES.map(bt=>{
           const btRecs=records.filter(r=>{
@@ -719,6 +746,25 @@ function AnalyticsTab({records,customers,getCustomer}){
             </div>
           );
         })}
+      </div>
+
+      {/* 작업내용 TOP 10 */}
+      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
+          작업내용 TOP 10 · {selYear}
+        </div>
+        {topSvcs.length===0?<div style={{fontSize:13,color:"#94a3b8"}}>데이터 없음</div>:
+        topSvcs.map(([svc,cnt])=>(
+          <div key={svc} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
+              <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{cnt}건</span>
+            </div>
+            <div style={{height:6,background:"#f1f5f9",borderRadius:3}}>
+              <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${(cnt/maxSvc)*100}%`,transition:"width 0.5s"}}/>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1099,12 +1145,12 @@ function App(){
                 <button onClick={goNext} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#1e293b",padding:"0 6px",fontWeight:700}}>›</button>
               </div>
             </div>
-            {/* 범례 */}
-            <div style={{display:"flex",gap:12,marginBottom:10}}>
-              {[...TIME_SLOTS,"종일"].map(s=>(
-                <span key={s} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#64748b"}}>
-                  <span style={{width:7,height:7,borderRadius:"50%",background:SC[s],display:"inline-block"}}/>
-                  {s}
+            {/* 범례 - 금액대별 */}
+            <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+              {[["~13만","#3b82f6"],["14~20만","#eab308"],["21~50만","#f97316"],["50만↑","#ef4444"],["종일","#8b5cf6"]].map(([l,c])=>(
+                <span key={l} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#64748b"}}>
+                  <span style={{width:7,height:7,borderRadius:2,background:c,display:"inline-block"}}/>
+                  {l}
                 </span>
               ))}
             </div>
