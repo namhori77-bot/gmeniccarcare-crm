@@ -41,6 +41,17 @@
     @keyframes fadeUp  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
     @keyframes slideIn { from{opacity:0;transform:translateX(-100%)} to{opacity:1;transform:translateX(0)} }
     @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.5} }
+    @keyframes slideLeft  { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
+    @keyframes slideRight { from{opacity:0;transform:translateX(-40px)} to{opacity:1;transform:translateX(0)} }
+    .cal-swipe { touch-action: pan-y; user-select: none; }
+    .tbl-wrap  { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .tbl-wrap table { border-collapse:collapse; min-width:600px; width:100%; }
+    .tbl-wrap th { background:#1e293b; color:#fff; padding:8px 10px; font-size:11px; font-weight:700; text-align:center; white-space:nowrap; letter-spacing:.5px; }
+    .tbl-wrap td { padding:7px 10px; font-size:12px; text-align:center; border-bottom:1px solid #f1f5f9; white-space:nowrap; color:#334155; }
+    .tbl-wrap tr:hover td { background:#f8fafc; }
+    .tbl-wrap td.num { font-weight:700; color:#1e293b; }
+    .tbl-wrap td.amt { font-weight:700; color:#1e293b; }
+    .tbl-wrap td.mo  { font-weight:600; color:#475569; background:#f8fafc; }
     @media(min-width:768px){
       .pc-split{display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start;}
       .pc-sticky{position:sticky;top:70px;}
@@ -268,9 +279,31 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 }
 
 // ── 달력 ──────────────────────────────────────────────
-function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate}){
+function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onSwipeLeft,onSwipeRight}){
+  const touchStartX=useRef(null);
+  const touchStartY=useRef(null);
+  const [animDir,setAnimDir]=useState(null);
+
+  function onTouchStart(e){
+    touchStartX.current=e.touches[0].clientX;
+    touchStartY.current=e.touches[0].clientY;
+  }
+  function onTouchEnd(e){
+    if(touchStartX.current===null)return;
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    const dy=e.changedTouches[0].clientY-touchStartY.current;
+    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>40){
+      if(dx<0){setAnimDir("left");onSwipeLeft();}
+      else{setAnimDir("right");onSwipeRight();}
+      setTimeout(()=>setAnimDir(null),300);
+    }
+    touchStartX.current=null;
+  }
   return(
-    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+    <div className="cal-swipe"
+      style={{overflowX:"auto",WebkitOverflowScrolling:"touch",
+        animation:animDir==="left"?"slideLeft 0.25s ease":animDir==="right"?"slideRight 0.25s ease":"none"}}
+      onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div style={{minWidth:"100%"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,background:"#e2e8f0",borderRadius:"10px 10px 0 0",overflow:"hidden"}}>
           {["SUN","MON","TUE","WED","THU","FRI","SAT"].map((d,i)=>(
@@ -480,15 +513,18 @@ function CustomerSearch({customers,records,onEdit}){
                 style={{background:"#fff",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid #e2e8f0",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"box-shadow 0.15s"}}
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.08)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.04)"}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>{c.name||c.phone}</span>
-                    {c.name&&<span style={{fontSize:10,color:"#94a3b8"}}>{c.phone}</span>}
-                    <span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`}}>{c.bookingType}</span>
-                  </div>
-                  <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{formatKRW(total)}</span>
+                {/* 1줄: 고객명 + 총금액 */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                  <span style={{fontWeight:800,fontSize:14,color:"#0f172a",lineHeight:1.3,flex:1,marginRight:8,wordBreak:"break-all"}}>{c.name||c.phone}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:"#1e293b",flexShrink:0}}>{formatKRW(total)}</span>
                 </div>
-                <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{(c.cars||[]).join(" · ")||"차종 없음"}</div>
+                {/* 2줄: 전화번호 + 예약뱃지 */}
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                  <span style={{fontSize:11,color:"#64748b"}}>{c.phone}</span>
+                  <span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`,flexShrink:0}}>{c.bookingType}</span>
+                </div>
+                {/* 3줄: 차종 */}
+                <div style={{fontSize:11,color:"#94a3b8"}}>{(c.cars||[]).join(" · ")||"차종 없음"}</div>
                 {last&&<div style={{fontSize:10,color:"#cbd5e1",marginTop:3}}>최근: {last.date} · {(last.services||[]).join(", ")}</div>}
                 {c.memo&&<div style={{fontSize:10,color:"#d97706",marginTop:2}}>📝 {c.memo}</div>}
               </div>
@@ -496,6 +532,184 @@ function CustomerSearch({customers,records,onEdit}){
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── 분석 탭 컴포넌트 ────────────────────────────────
+function AnalyticsTab({records,customers,getCustomer}){
+  const now=new Date();
+  const [selYear,setSelYear]=useState(now.getFullYear());
+
+  // 연도 목록 추출
+  const years=useMemo(()=>{
+    const ys=new Set(records.map(r=>r.date?.slice(0,4)).filter(Boolean));
+    return [...ys].sort((a,b)=>b-a);
+  },[records]);
+
+  // 선택 연도의 월별 통계
+  const monthlyData=useMemo(()=>{
+    return Array.from({length:12},(_,mi)=>{
+      const mo=`${selYear}-${String(mi+1).padStart(2,"0")}`;
+      const moRecs=records.filter(r=>r.date?.startsWith(mo));
+      if(moRecs.length===0)return{mo:mi+1,count:0,revenue:0,avg:0,btMap:{},svcMap:{}};
+
+      const revenue=moRecs.reduce((s,r)=>s+Number(r.amount),0);
+      const avg=Math.round(revenue/moRecs.length);
+
+      // 예약구분별 건수
+      const btMap={};
+      moRecs.forEach(r=>{
+        const c=getCustomer(r.customerId);
+        const bt=c?.bookingType||"기타";
+        btMap[bt]=(btMap[bt]||0)+1;
+      });
+
+      // 작업내용별 건수
+      const svcMap={};
+      moRecs.forEach(r=>{
+        (r.services||[]).forEach(s=>{svcMap[s]=(svcMap[s]||0)+1;});
+      });
+
+      return{mo:mi+1,count:moRecs.length,revenue,avg,btMap,svcMap};
+    });
+  },[records,selYear,getCustomer]);
+
+  const yearTotal=monthlyData.reduce((s,m)=>s+m.revenue,0);
+  const yearCount=monthlyData.reduce((s,m)=>s+m.count,0);
+
+  // 연간 서비스 TOP
+  const svcTotal={};
+  records.filter(r=>r.date?.startsWith(String(selYear))).forEach(r=>{
+    (r.services||[]).forEach(s=>{svcTotal[s]=(svcTotal[s]||0)+1;});
+  });
+  const topSvcs=Object.entries(svcTotal).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxSvc=topSvcs[0]?.[1]||1;
+
+  const formatK=n=>n>=10000?`${Math.round(n/10000)}만`:n.toLocaleString("ko-KR");
+
+  return(
+    <div style={{animation:"fadeUp 0.3s ease"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#1e293b"}}>ANALYTICS</div>
+        {/* 연도 선택 */}
+        <div style={{display:"flex",gap:4}}>
+          {years.map(y=>(
+            <button key={y} onClick={()=>setSelYear(Number(y))}
+              style={{padding:"5px 12px",border:"1.5px solid",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                borderColor:selYear===Number(y)?"#1e293b":"#e2e8f0",
+                background:selYear===Number(y)?"#1e293b":"#fff",
+                color:selYear===Number(y)?"#fff":"#64748b"}}>
+              {y}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 연간 요약 카드 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+        {[
+          ["연간 매출",formatKRW(yearTotal)],
+          ["총 입고",`${yearCount}대`],
+          ["월평균",formatKRW(Math.round(yearTotal/12))],
+        ].map(([l,v])=>(
+          <div key={l} style={{background:"#fff",borderRadius:12,padding:"14px 10px",textAlign:"center",border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+            <div style={{fontSize:10,color:"#94a3b8",marginBottom:6,fontWeight:600}}>{l}</div>
+            <div style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 월별 매출표 */}
+      <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14,overflow:"hidden"}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b"}}>월별 매출 현황 · {selYear}</div>
+          <div style={{fontSize:10,color:"#94a3b8"}}>좌우 스크롤 →</div>
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>월</th>
+                <th>입고</th>
+                <th>매출</th>
+                <th>객단가</th>
+                <th>신규</th>
+                <th>기존</th>
+                <th>단골</th>
+                <th>네이버</th>
+                <th>지메닉</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyData.map(m=>(
+                <tr key={m.mo} style={{opacity:m.count===0?0.35:1}}>
+                  <td className="mo">{m.mo}월</td>
+                  <td className="num">{m.count>0?m.count:"-"}</td>
+                  <td className="amt">{m.count>0?formatK(m.revenue):"-"}</td>
+                  <td className="amt">{m.count>0?formatK(m.avg):"-"}</td>
+                  {BOOKING_TYPES.map(bt=>(
+                    <td key={bt}>{m.btMap[bt]||"-"}</td>
+                  ))}
+                </tr>
+              ))}
+              {/* 합계 */}
+              <tr style={{background:"#f8fafc",borderTop:"2px solid #e2e8f0"}}>
+                <td style={{fontWeight:700,color:"#1e293b"}}>합계</td>
+                <td className="num">{yearCount}</td>
+                <td className="amt">{formatK(yearTotal)}</td>
+                <td className="amt">{yearCount>0?formatK(Math.round(yearTotal/yearCount)):"-"}</td>
+                {BOOKING_TYPES.map(bt=>{
+                  const tot=monthlyData.reduce((s,m)=>s+(m.btMap[bt]||0),0);
+                  return<td key={bt} style={{fontWeight:700}}>{tot||"-"}</td>;
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 작업내용 TOP 10 */}
+      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14}}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
+          작업내용 TOP 10 · {selYear}
+        </div>
+        {topSvcs.length===0?<div style={{fontSize:13,color:"#94a3b8"}}>데이터 없음</div>:
+        topSvcs.map(([svc,cnt])=>(
+          <div key={svc} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
+              <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{cnt}건</span>
+            </div>
+            <div style={{height:6,background:"#f1f5f9",borderRadius:3}}>
+              <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${(cnt/maxSvc)*100}%`,transition:"width 0.5s"}}/>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 예약구분별 현황 */}
+      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>예약구분별 · {selYear}</div>
+        {BOOKING_TYPES.map(bt=>{
+          const btRecs=records.filter(r=>{
+            if(!r.date?.startsWith(String(selYear)))return false;
+            const c=getCustomer(r.customerId);return c?.bookingType===bt;
+          });
+          if(btRecs.length===0)return null;
+          const rev=btRecs.reduce((s,r)=>s+Number(r.amount),0);
+          const btc=BT[bt];
+          return(
+            <div key={bt} style={{borderRadius:10,padding:"10px 12px",marginBottom:8,background:btc.bg,border:`1px solid ${btc.border}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:12,fontWeight:700,color:btc.color}}>{bt}</span>
+                <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+              </div>
+              <div style={{fontSize:11,color:"#64748b",marginTop:3}}>{btRecs.length}건 · 객단가 {formatKRW(Math.round(rev/btRecs.length))}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -893,7 +1107,8 @@ function App(){
                   <BigCalendar days={calDays} calYear={calY} calMonth={calM} calendarMap={calendarMap}
                     isWeek={view==="week"} onSelectDate={setSelDate}
                     onAddBooking={date=>setBookingModal({date,slot:"10:00",record:null})}
-                    selectedDate={selDate}/>
+                    selectedDate={selDate}
+                    onSwipeLeft={goNext} onSwipeRight={goPrev}/>
                 </div>
               </div>
 
@@ -1017,62 +1232,11 @@ function App(){
         {/* ══ 분석 탭 ══ */}
         {tab==="analytics"&&(()=>{
           const now=new Date();
-          const tm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-          const lmd=new Date(now.getFullYear(),now.getMonth()-1,1);
-          const lm=`${lmd.getFullYear()}-${String(lmd.getMonth()+1).padStart(2,"0")}`;
-          const tR=records.filter(r=>r.date.startsWith(tm));
-          const lR=records.filter(r=>r.date.startsWith(lm));
-          const svcRev={};SERVICES.forEach(s=>svcRev[s]=0);
-          records.forEach(r=>(r.services||[]).forEach(s=>{svcRev[s]=(svcRev[s]||0)+Number(r.amount)/(r.services.length||1);}));
-          const maxRev=Math.max(...Object.values(svcRev),1);
-          return(
-            <div style={{animation:"fadeUp 0.3s ease"}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#1e293b",marginBottom:14}}>ANALYTICS</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
-                {[["이번 달",tR.reduce((s,r)=>s+Number(r.amount),0),tR.length+"건"],
-                  ["지난 달",lR.reduce((s,r)=>s+Number(r.amount),0),""],
-                  ["누적",records.reduce((s,r)=>s+Number(r.amount),0),""]].map(([l,v,sub])=>(
-                  <div key={l} style={{background:"#fff",borderRadius:12,padding:"14px 10px",textAlign:"center",border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-                    <div style={{fontSize:10,color:"#94a3b8",marginBottom:6,fontWeight:600}}>{l}</div>
-                    <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>{formatKRW(v)}</div>
-                    {sub&&<div style={{fontSize:10,color:"#94a3b8",marginTop:3}}>{sub}</div>}
-                  </div>
-                ))}
-              </div>
-              <div style={{background:"#fff",borderRadius:12,padding:16,marginBottom:12,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-                <div style={{fontWeight:700,fontSize:14,color:"#1e293b",marginBottom:14,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>SERVICE REVENUE</div>
-                {Object.entries(svcRev).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([svc,amt])=>(
-                  <div key={svc} style={{marginBottom:10}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                      <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
-                      <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{formatKRW(Math.round(amt))}</span>
-                    </div>
-                    <div style={{height:6,background:"#f1f5f9",borderRadius:3}}>
-                      <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${(amt/maxRev)*100}%`,transition:"width 0.5s"}}/>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-                <div style={{fontWeight:700,fontSize:14,color:"#1e293b",marginBottom:14,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>BOOKING SOURCE</div>
-                {BOOKING_TYPES.map(bt=>{
-                  const cnt=customers.filter(c=>c.bookingType===bt).length;
-                  const rev=records.filter(r=>{const c=getCustomer(r.customerId);return c?.bookingType===bt;}).reduce((s,r)=>s+Number(r.amount),0);
-                  if(!cnt)return null;
-                  const btc=BT[bt];
-                  return(
-                    <div key={bt} style={{borderRadius:10,padding:"10px 12px",marginBottom:8,background:btc.bg,border:`1px solid ${btc.border}`}}>
-                      <div style={{display:"flex",justifyContent:"space-between"}}>
-                        <span style={{fontSize:12,fontWeight:700,color:btc.color}}>{bt}</span>
-                        <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
-                      </div>
-                      <div style={{fontSize:11,color:"#64748b",marginTop:3}}>고객 {cnt}명</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
+          const thisYear=now.getFullYear();
+
+          // 연도 선택 state (IIFE 안에서 useState 못 씀 → 부모에서 관리)
+          // → AnalyticsTab 컴포넌트로 분리
+          return <AnalyticsTab records={records} customers={customers} getCustomer={getCustomer}/>;
         })()}
       </main>
 
