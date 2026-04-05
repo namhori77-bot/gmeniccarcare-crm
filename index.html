@@ -1235,61 +1235,53 @@ function WeatherAnalysis({records, selYear}){
     }
   },[startDate, endDate]);
 
-  // ── 통계 계산 ────────────────────────────────────────────
+  // ── 통계 계산: 월 단위 비온날 비율 vs 월 매출 총액 ────────
   const stats = useMemo(()=>{
     if(status !== "ok" || Object.keys(weatherMap).length === 0) return null;
 
-    // 날짜별 매출 합산 (종일 레코드는 시작일 기준)
-    const dayRevMap = {};
-    records.forEach(r=>{
-      const d = r.date;
-      if(!d) return;
-      dayRevMap[d] = (dayRevMap[d] || 0) + Number(r.amount || 0);
-    });
-
-    // 날씨 있는 날짜만 분류
-    const rainDays = [], clearDays = [];
-    Object.entries(weatherMap).forEach(([d, mm])=>{
-      if(!(d in dayRevMap)) return; // 매출 기록 없는 날 제외
-      const rev = dayRevMap[d];
-      if(mm >= RAIN_MM) rainDays.push(rev);
-      else              clearDays.push(rev);
-    });
-
-    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
-    const rainAvg  = avg(rainDays);
-    const clearAvg = avg(clearDays);
-
-    // Pearson 상관계수: X=강수량, Y=매출
-    const pairs = Object.entries(weatherMap)
-      .filter(([d])=> d in dayRevMap)
-      .map(([d, mm])=>({ mm, rev: dayRevMap[d] }));
-
-    let r = 0;
-    if(pairs.length >= 2){
-      const n = pairs.length;
-      const mx = pairs.reduce((s,p)=>s+p.mm,0)/n;
-      const my = pairs.reduce((s,p)=>s+p.rev,0)/n;
-      const num  = pairs.reduce((s,p)=>s+(p.mm-mx)*(p.rev-my),0);
-      const dx   = Math.sqrt(pairs.reduce((s,p)=>s+(p.mm-mx)**2,0));
-      const dy   = Math.sqrt(pairs.reduce((s,p)=>s+(p.rev-my)**2,0));
-      r = (dx*dy === 0) ? 0 : num/(dx*dy);
-      if(!isFinite(r)||isNaN(r)) r = 0;
-    }
-
-    // 월별 집계: 비온날수 / 맑은날수 / 매출평균
-    const byMonth = {};
+    // 월별 날씨 집계 (날씨 API 기준 전체 날짜)
+    const wByMonth = {}; // ym → { rainDays:N, totalDays:N }
     Object.entries(weatherMap).forEach(([d, mm])=>{
       const ym = d.slice(0,7);
-      if(!byMonth[ym]) byMonth[ym] = {rain:0, clear:0, rainRev:[], clearRev:[]};
-      if(d in dayRevMap){
-        if(mm >= RAIN_MM){ byMonth[ym].rain++; byMonth[ym].rainRev.push(dayRevMap[d]); }
-        else             { byMonth[ym].clear++; byMonth[ym].clearRev.push(dayRevMap[d]); }
-      } else {
-        if(mm >= RAIN_MM) byMonth[ym].rain++;
-        else              byMonth[ym].clear++;
-      }
+      if(!wByMonth[ym]) wByMonth[ym] = {rainDays:0, totalDays:0};
+      wByMonth[ym].totalDays++;
+      if(mm >= RAIN_MM) wByMonth[ym].rainDays++;
     });
+
+    // 월별 매출 총액 (records 기준)
+    const revByMonth = {};
+    records.forEach(r=>{
+      if(!r.date) return;
+      const ym = r.date.slice(0,7);
+      revByMonth[ym] = (revByMonth[ym]||0) + Number(r.amount||0);
+    });
+
+    // 두 데이터 모두 있는 월만 pairs로 추출
+    // X = 비온날 비율(0~1), Y = 월 매출 총액
+    const pairs = Object.keys(wByMonth)
+      .filter(ym => ym in revByMonth && wByMonth[ym].totalDays > 0)
+      .map(ym => {
+        const w = wByMonth[ym];
+        const rainRatio = w.rainDays / w.totalDays; // 0~1
+        const rev = revByMonth[ym];
+        return { ym, rainDays:w.rainDays, totalDays:w.totalDays, rainRatio, rev };
+      })
+      .sort((a,b)=>a.ym.localeCompare(b.ym));
+
+    if(pairs.length === 0) return null;
+
+    // Pearson 상관계수: X=비온날비율, Y=월매출총액
+    const safe = arr => isFinite(arr) && !isNaN(arr) ? arr : 0;
+    let r = 0;
+    if(pairs.length >= 3){
+      const n  = pairs.length;
+      const mx = pairs.reduce((s,p)=>s+p.rainRatio,0)/n;
+      const my = pairs.reduce((s,p)=>s+p.rev,0)/n;
+      const num = pairs.reduce((s,p)=>s+(p.rainRatio-mx)*(p.rev-my),0);
+      const dx  = Math.sqrt(pairs.reduce((s,p)=>s+(p.rainRatio-mx)**2,0));
+      const dy  = Math.sqrt(pairs.reduce((s,p)=>s+(p.rev-my)**2,0));
+      r = safe((dx*dy===0)?0:num/(dx*dy));
+    }
 
     const corrLabel = r >= 0.7 ? "강한 양의 상관"
       : r >= 0.4  ? "중간 양의 상관"
@@ -1300,21 +1292,36 @@ function WeatherAnalysis({records, selYear}){
       : "강한 음의 상관";
 
     const corrColor = Math.abs(r) < 0.1 ? "#94a3b8"
-      : r > 0 ? "#22c55e" : "#ef4444";
+      : r < 0 ? "#ef4444" : "#22c55e";
+
+    // 비온날 비율 TOP / BOTTOM 3 월
+    const sorted = [...pairs].sort((a,b)=>b.rainRatio-a.rainRatio);
+    const topRain  = sorted.slice(0,3);  // 비 가장 많은 달
+    const topClear = sorted.slice(-3).reverse(); // 비 가장 적은 달
 
     // selYear 기준 월별 차트 데이터
     const months = Array.from({length:12},(_,i)=>{
       const ym = `${selYear}-${String(i+1).padStart(2,"0")}`;
-      const m  = byMonth[ym];
-      const rAvg = m && m.rainRev.length  ? avg(m.rainRev)  : 0;
-      const cAvg = m && m.clearRev.length ? avg(m.clearRev) : 0;
-      return { month: i+1, ym, rain: m?.rain||0, clear: m?.clear||0, rainAvg:rAvg, clearAvg:cAvg };
+      const p  = pairs.find(x=>x.ym===ym);
+      return {
+        month: i+1, ym,
+        rainRatio: p ? p.rainRatio : null,
+        rev: p ? p.rev : null,
+        rainDays: p ? p.rainDays : null,
+        totalDays: p ? p.totalDays : null,
+      };
     });
 
-    const maxBarVal = Math.max(...months.map(m=>Math.max(m.rainAvg,m.clearAvg)),1);
+    // 차트 스케일
+    const maxRev = Math.max(...pairs.map(p=>p.rev), 1);
 
-    return { rainDays, clearDays, rainAvg, clearAvg, r, corrLabel, corrColor,
-             pairs: pairs.length, months, maxBarVal, byMonth };
+    // 전체 요약 통계
+    const avgRainRatio = pairs.reduce((s,p)=>s+p.rainRatio,0)/pairs.length;
+    const avgRev       = pairs.reduce((s,p)=>s+p.rev,0)/pairs.length;
+
+    return { pairs, r, corrLabel, corrColor,
+             topRain, topClear, months, maxRev,
+             avgRainRatio, avgRev };
   },[weatherMap, records, status, selYear]);
 
   // ── 렌더링 ───────────────────────────────────────────────
@@ -1374,152 +1381,252 @@ function WeatherAnalysis({records, selYear}){
 
       {/* 분석 결과 */}
       {status === "ok" && stats && (()=>{
-        const {rainDays,clearDays,rainAvg,clearAvg,r,corrLabel,corrColor,pairs,months,maxBarVal} = stats;
-        const minSample = 10;
-        const lowSample = pairs < minSample;
+        const {pairs,r,corrLabel,corrColor,topRain,topClear,months,maxRev,avgRainRatio,avgRev} = stats;
+        const lowSample = pairs.length < 3;
 
         return(
           <>
             {lowSample && (
               <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:8,
                 padding:"7px 12px",marginBottom:12,fontSize:11,color:"#854d0e"}}>
-                ⚠️ 분석 가능한 날짜가 {pairs}일로 적습니다. 더 많은 데이터가 쌓일수록 정확해집니다.
+                ⚠️ 분석 가능한 월이 {pairs.length}개월로 적습니다. 데이터가 쌓일수록 정확해집니다.
               </div>
             )}
 
-            {/* 핵심 지표 3개 */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
-              {/* 맑은날 평균 */}
-              <div style={{background:"linear-gradient(135deg,#fef9c3,#fef08a)",borderRadius:10,
-                padding:"12px 10px",border:"1px solid #fde047",textAlign:"center"}}>
-                <div style={{fontSize:16,marginBottom:4}}>☀️</div>
-                <div style={{fontSize:10,color:"#78350f",fontWeight:700,marginBottom:4}}>맑은날 평균</div>
-                <div style={{fontSize:14,fontWeight:900,color:"#1e293b",wordBreak:"break-all"}}>
-                  {formatKRW(Math.round(clearAvg))}
-                </div>
-                <div style={{fontSize:10,color:"#92400e",marginTop:2}}>{clearDays.length}일</div>
+            {/* 상관계수 카드 */}
+            <div style={{background:"#1e293b",borderRadius:12,padding:"16px",marginBottom:12}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:600,
+                letterSpacing:0.8,marginBottom:8}}>
+                PEARSON 상관계수 — 월별 비온날 비율 vs 월 매출 총액
               </div>
-              {/* 비온날 평균 */}
-              <div style={{background:"linear-gradient(135deg,#dbeafe,#bfdbfe)",borderRadius:10,
-                padding:"12px 10px",border:"1px solid #93c5fd",textAlign:"center"}}>
-                <div style={{fontSize:16,marginBottom:4}}>🌧</div>
-                <div style={{fontSize:10,color:"#1e3a5f",fontWeight:700,marginBottom:4}}>비온날 평균</div>
-                <div style={{fontSize:14,fontWeight:900,color:"#1e293b",wordBreak:"break-all"}}>
-                  {formatKRW(Math.round(rainAvg))}
-                </div>
-                <div style={{fontSize:10,color:"#1e40af",marginTop:2}}>{rainDays.length}일</div>
-              </div>
-              {/* 차이 */}
-              <div style={{background:"linear-gradient(135deg,#f1f5f9,#e2e8f0)",borderRadius:10,
-                padding:"12px 10px",border:"1px solid #cbd5e1",textAlign:"center"}}>
-                <div style={{fontSize:16,marginBottom:4}}>📊</div>
-                <div style={{fontSize:10,color:"#475569",fontWeight:700,marginBottom:4}}>매출 차이</div>
-                <div style={{fontSize:14,fontWeight:900,
-                  color: clearAvg>=rainAvg?"#16a34a":"#dc2626",wordBreak:"break-all"}}>
-                  {clearAvg>=rainAvg?"+":""}{formatKRW(Math.round(clearAvg-rainAvg))}
-                </div>
-                <div style={{fontSize:10,color:"#64748b",marginTop:2}}>
-                  {clearAvg>0&&rainAvg>0 ? `${Math.abs(Math.round((clearAvg-rainAvg)/Math.max(clearAvg,rainAvg)*100))}% 차이` : "-"}
-                </div>
-              </div>
-            </div>
-
-            {/* Pearson 상관계수 */}
-            <div style={{background:"#1e293b",borderRadius:10,padding:"12px 16px",marginBottom:14}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <span style={{fontSize:36,fontWeight:900,color:corrColor,
+                  fontFamily:"'Bebas Neue',sans-serif",letterSpacing:2,lineHeight:1}}>
+                  {r.toFixed(3)}
+                </span>
                 <div>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:600,marginBottom:4,letterSpacing:0.5}}>
-                    PEARSON 상관계수 (강수량 vs 매출)
+                  <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:2}}>{corrLabel}</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.45)"}}>
+                    {pairs.length}개월 기준 · {startDate} ~ {endDate}
                   </div>
-                  <div style={{display:"flex",alignItems:"baseline",gap:8}}>
-                    <span style={{fontSize:26,fontWeight:900,color:corrColor,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>
-                      {r.toFixed(3)}
-                    </span>
-                    <span style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontWeight:600}}>{corrLabel}</span>
-                  </div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:2}}>분석 기간</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontWeight:600}}>{startDate} ~</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontWeight:600}}>{endDate}</div>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{pairs}일 기준</div>
                 </div>
               </div>
-              {/* 상관계수 바 */}
-              <div style={{marginTop:10}}>
-                <div style={{height:6,background:"rgba(255,255,255,0.1)",borderRadius:3,position:"relative"}}>
-                  <div style={{position:"absolute",left:"50%",top:-2,width:1,height:10,background:"rgba(255,255,255,0.3)"}}/>
+
+              {/* 상관계수 시각화 바 */}
+              <div style={{position:"relative",marginBottom:5}}>
+                <div style={{height:8,background:"rgba(255,255,255,0.08)",borderRadius:4}}>
+                  {/* 중심선 */}
+                  <div style={{position:"absolute",left:"50%",top:0,width:1,height:8,
+                    background:"rgba(255,255,255,0.25)"}}/>
+                  {/* 채움 바 */}
                   <div style={{
                     position:"absolute",
-                    left: r>=0 ? "50%" : `${(0.5+(r/2))*100}%`,
-                    width: `${Math.abs(r)/2*100}%`,
-                    height:6, borderRadius:3,
-                    background: corrColor,
-                    transition:"all 0.5s"
+                    left: r>=0 ? "50%" : `${(0.5+r/2)*100}%`,
+                    width:`${Math.abs(r)/2*100}%`,
+                    height:8, borderRadius:4,
+                    background:`linear-gradient(90deg,${r<0?"#ef4444,#fca5a5":"#22c55e,#86efac"})`,
+                    transition:"all 0.6s ease"
                   }}/>
                 </div>
-                <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
-                  <span style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>-1.0 강한음</span>
-                  <span style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>0</span>
-                  <span style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>+1.0 강한양</span>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                  <span style={{fontSize:9,color:"rgba(255,255,255,0.25)"}}>-1.0 강한음</span>
+                  <span style={{fontSize:9,color:"rgba(255,255,255,0.25)"}}>0</span>
+                  <span style={{fontSize:9,color:"rgba(255,255,255,0.25)"}}>+1.0 강한양</span>
                 </div>
               </div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:8}}>
-                {r<=-0.1 ? "📉 비가 올수록 매출이 감소하는 경향이 있습니다."
-                  : r>=0.1 ? "📈 비가 올수록 매출이 증가하는 경향이 있습니다."
-                  : "➡️ 강수량과 매출 사이에 뚜렷한 상관관계가 없습니다."}
+
+              {/* 해석 문장 */}
+              <div style={{background:"rgba(255,255,255,0.06)",borderRadius:8,padding:"8px 12px",marginTop:8}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",lineHeight:1.6}}>
+                  {r <= -0.4
+                    ? `📉 비온날 비율이 높은 달일수록 월 매출이 뚜렷하게 줄어듭니다. 장마·봄비 시즌 대비 전략이 필요합니다.`
+                    : r <= -0.1
+                    ? `🌂 비온날 비율이 높으면 월 매출이 소폭 감소하는 경향이 있습니다.`
+                    : r >= 0.1
+                    ? `📈 비온날 비율과 매출 사이에 양의 상관이 나타납니다. (예: 실내 작업 비중 확인 권장)`
+                    : `➡️ 비온날 비율과 월 매출 사이에 뚜렷한 상관관계가 없습니다.`}
+                </div>
               </div>
             </div>
 
-            {/* 월별 막대 차트 */}
-            <div>
+            {/* 월별 이중 차트: 비율 바 + 매출 라인 */}
+            <div style={{background:"#f8fafc",borderRadius:12,padding:"14px 12px",marginBottom:12,
+              border:"1px solid #e2e8f0"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:10,letterSpacing:0.5}}>
-                월별 평균 매출 — {selYear}년 (☀️ 맑은날 vs 🌧 비온날)
+                월별 비온날 비율 & 매출 총액 — {selYear}년
               </div>
+
               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <div style={{display:"flex",gap:4,alignItems:"flex-end",minWidth:520,height:120,paddingBottom:20,position:"relative"}}>
-                  {/* 가이드라인 */}
-                  {[0,0.5,1].map(f=>(
-                    <div key={f} style={{position:"absolute",left:0,right:0,
-                      bottom: 20+f*100, height:1,
-                      borderBottom:`1px dashed rgba(0,0,0,${f===0?"0.08":"0.04"})`}}/>
-                  ))}
-                  {months.map(m=>{
-                    const cH = maxBarVal>0 ? (m.clearAvg/maxBarVal)*90 : 0;
-                    const rH = maxBarVal>0 ? (m.rainAvg/maxBarVal)*90  : 0;
-                    const hasData = m.clearAvg>0 || m.rainAvg>0;
-                    return(
-                      <div key={m.month} style={{flex:1,display:"flex",flexDirection:"column",
-                        alignItems:"center",justifyContent:"flex-end",height:"100%",gap:1}}>
-                        <div style={{display:"flex",gap:1,alignItems:"flex-end",width:"100%",justifyContent:"center"}}>
-                          {/* 맑은날 바 */}
-                          <div style={{width:"45%",height: hasData?`${cH}px`:"2px",
-                            background: hasData?"linear-gradient(180deg,#fbbf24,#f59e0b)":"#f1f5f9",
-                            borderRadius:"2px 2px 0 0",transition:"height 0.5s",minHeight:2}}/>
-                          {/* 비온날 바 */}
-                          <div style={{width:"45%",height: hasData?`${rH}px`:"2px",
-                            background: hasData?"linear-gradient(180deg,#60a5fa,#3b82f6)":"#f1f5f9",
-                            borderRadius:"2px 2px 0 0",transition:"height 0.5s",minHeight:2}}/>
-                        </div>
-                        <div style={{fontSize:8,color:"#94a3b8",marginTop:2}}>{m.month}월</div>
-                        {hasData&&(
-                          <div style={{fontSize:7,color:"#cbd5e1"}}>
-                            ☀{m.clear} 🌧{m.rain}
+                <div style={{minWidth:340,position:"relative"}}>
+                  {/* 매출 라인 차트 영역 */}
+                  <div style={{height:90,position:"relative",marginBottom:0}}>
+                    {/* 수평 가이드선 3개 */}
+                    {[0,0.5,1].map(f=>(
+                      <div key={f} style={{position:"absolute",left:0,right:0,
+                        bottom:`${f*80}px`,
+                        borderBottom:`1px dashed rgba(0,0,0,${f===0?"0.1":"0.04"})`}}/>
+                    ))}
+                    {/* SVG 라인 + 포인트 */}
+                    <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible"}}>
+                      <defs>
+                        <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3"/>
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      {(()=>{
+                        const W=100/12; // % per month
+                        const pts=months.map((m,i)=>{
+                          const x=`${W*i+W/2}%`;
+                          const y= m.rev!==null ? `${(1-m.rev/maxRev)*78+4}px` : null;
+                          return {x,y,m,i};
+                        }).filter(p=>p.y!==null);
+
+                        if(pts.length<2) return null;
+
+                        // polyline path
+                        const pathD = pts.map((p,i)=>`${i===0?"M":"L"} ${p.x} ${p.y}`).join(" ");
+                        const areaD = pathD
+                          + ` L ${pts[pts.length-1].x} 90px`
+                          + ` L ${pts[0].x} 90px Z`;
+
+                        return(
+                          <>
+                            <path d={areaD.replace(/px/g,"")} fill="url(#lineGrad)" opacity="0.4"/>
+                            <polyline points={pts.map(p=>`${p.x.replace("%","")}% ${p.y.replace("px","")}`).join(" ")}
+                              fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round"/>
+                            {pts.map(p=>(
+                              <circle key={p.i} cx={p.x} cy={p.y.replace("px","")}
+                                r="3" fill="#6366f1" stroke="#fff" strokeWidth="1.5"/>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </svg>
+                  </div>
+
+                  {/* 비온날 비율 바 + 레이블 */}
+                  <div style={{display:"flex",gap:2,alignItems:"flex-end",marginTop:4}}>
+                    {months.map(m=>{
+                      const hasData = m.rainRatio!==null;
+                      const pct = hasData ? m.rainRatio*100 : 0;
+                      // 비율에 따라 색상 그라디언트
+                      const barColor = pct >= 40 ? "#3b82f6"
+                        : pct >= 20 ? "#60a5fa"
+                        : "#bfdbfe";
+                      return(
+                        <div key={m.month} style={{flex:1,display:"flex",flexDirection:"column",
+                          alignItems:"center",gap:2}}>
+                          {/* 비율 수치 */}
+                          <div style={{fontSize:8,color: hasData?"#475569":"#e2e8f0",
+                            fontWeight:700,height:12,lineHeight:"12px"}}>
+                            {hasData ? `${Math.round(pct)}%` : ""}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          {/* 비율 바 (최대 36px) */}
+                          <div style={{width:"70%",height:36,background:"#e2e8f0",
+                            borderRadius:"3px 3px 0 0",position:"relative",overflow:"hidden"}}>
+                            <div style={{
+                              position:"absolute",bottom:0,left:0,right:0,
+                              height:`${hasData ? pct : 0}%`,
+                              background:barColor,
+                              borderRadius:"3px 3px 0 0",
+                              transition:"height 0.6s ease"
+                            }}/>
+                          </div>
+                          {/* 월 레이블 */}
+                          <div style={{fontSize:8,color:"#94a3b8",marginTop:1}}>{m.month}월</div>
+                          {/* 비온날수 */}
+                          {hasData&&(
+                            <div style={{fontSize:7,color:"#cbd5e1"}}>{m.rainDays}일</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
+
               {/* 범례 */}
-              <div style={{display:"flex",gap:12,justifyContent:"center",marginTop:4}}>
-                {[["#f59e0b","☀️ 맑은날 평균매출"],["#3b82f6","🌧 비온날 평균매출"]].map(([c,l])=>(
+              <div style={{display:"flex",gap:14,marginTop:10,justifyContent:"center",flexWrap:"wrap"}}>
+                {[["#6366f1","월 매출 총액 (선)"],["#3b82f6","비온날 비율 (막대)"]].map(([c,l])=>(
                   <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
-                    <div style={{width:10,height:10,borderRadius:2,background:c}}/>
+                    <div style={{width:14,height:4,borderRadius:2,background:c}}/>
                     <span style={{fontSize:9,color:"#64748b"}}>{l}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* 비 많은 달 / 적은 달 TOP3 비교 */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+              {/* 비 많은 달 TOP3 */}
+              <div style={{background:"#eff6ff",borderRadius:10,padding:"12px 10px",
+                border:"1px solid #bfdbfe"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#1e40af",marginBottom:8}}>
+                  🌧 비 많은 달 TOP 3
+                </div>
+                {topRain.map((p,i)=>(
+                  <div key={p.ym} style={{marginBottom:i<2?7:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                      <span style={{fontSize:10,color:"#1e3a5f",fontWeight:600}}>
+                        {p.ym.replace("-",".")}
+                      </span>
+                      <span style={{fontSize:10,color:"#3b82f6",fontWeight:700}}>
+                        {Math.round(p.rainRatio*100)}% ({p.rainDays}/{p.totalDays}일)
+                      </span>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:800,color:"#1e293b"}}>
+                      {formatKRW(p.rev)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* 비 적은 달 TOP3 */}
+              <div style={{background:"#fefce8",borderRadius:10,padding:"12px 10px",
+                border:"1px solid #fde047"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#78350f",marginBottom:8}}>
+                  ☀️ 맑은 달 TOP 3
+                </div>
+                {topClear.map((p,i)=>(
+                  <div key={p.ym} style={{marginBottom:i<2?7:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                      <span style={{fontSize:10,color:"#78350f",fontWeight:600}}>
+                        {p.ym.replace("-",".")}
+                      </span>
+                      <span style={{fontSize:10,color:"#ca8a04",fontWeight:700}}>
+                        {Math.round(p.rainRatio*100)}% ({p.rainDays}/{p.totalDays}일)
+                      </span>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:800,color:"#1e293b"}}>
+                      {formatKRW(p.rev)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 평균 요약 */}
+            <div style={{display:"flex",gap:8}}>
+              <div style={{flex:1,background:"#f1f5f9",borderRadius:8,padding:"9px 12px",
+                border:"1px solid #e2e8f0",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,marginBottom:3}}>월평균 비온날 비율</div>
+                <div style={{fontSize:15,fontWeight:900,color:"#3b82f6"}}>
+                  {Math.round(avgRainRatio*100)}%
+                </div>
+              </div>
+              <div style={{flex:1,background:"#f1f5f9",borderRadius:8,padding:"9px 12px",
+                border:"1px solid #e2e8f0",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,marginBottom:3}}>월평균 매출 총액</div>
+                <div style={{fontSize:15,fontWeight:900,color:"#6366f1"}}>
+                  {formatKRW(Math.round(avgRev))}
+                </div>
+              </div>
+              <div style={{flex:1,background:"#f1f5f9",borderRadius:8,padding:"9px 12px",
+                border:"1px solid #e2e8f0",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,marginBottom:3}}>분석 월수</div>
+                <div style={{fontSize:15,fontWeight:900,color:"#1e293b"}}>
+                  {pairs.length}개월
+                </div>
               </div>
             </div>
           </>
