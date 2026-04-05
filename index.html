@@ -113,6 +113,19 @@
     /* 햄버거 버튼 - PC에선 숨김 */
     .mobile-menu-btn { display: none; }
 
+    /* 모바일 플로팅 빠른예약 버튼 */
+    .fab-quick {
+      display: none;
+      position: fixed; bottom: 24px; right: 20px; z-index: 90;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: linear-gradient(135deg,#6366f1,#4f46e5);
+      color: #fff; font-size: 24px; border: none; cursor: pointer;
+      box-shadow: 0 6px 20px rgba(99,102,241,0.45);
+      align-items: center; justify-content: center;
+      transition: transform 0.15s;
+    }
+    .fab-quick:active { transform: scale(0.9); }
+
     /* 모바일 */
     @media(max-width:767px){
       .sidebar { transform: translateX(-220px); }
@@ -123,6 +136,7 @@
       .dash-grid { grid-template-columns: 1fr; }
       .page-content { padding: 12px 14px; }
       .topbar { padding: 0 14px; }
+      .fab-quick { display: flex !important; }
     }
     @media(max-width:480px){
       .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -390,14 +404,18 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
-  // 주간: 모바일도 고정 너비로 가로 스크롤, 월간: PC 100px / 모바일 48px
-  // 주간: 고정 너비 가로스크롤, 월간: PC 크게 / 모바일 적당히
-  const CELL_W_WEEK = "88px";
-  const CELL_W_MONTH = isPC ? "100px" : "48px";
-  const CELL_W = isWeek ? CELL_W_WEEK : CELL_W_MONTH;
-  const GRID_W = isWeek
-    ? `calc(88px * 7 + 6px)`
-    : (isPC ? `calc(100px * 7 + 6px)` : `calc(48px * 7 + 6px)`);
+  // 반응형: 윈도우 크기 감지
+  const [winW,setWinW]=useState(window.innerWidth);
+  useEffect(()=>{
+    const fn=()=>setWinW(window.innerWidth);
+    window.addEventListener("resize",fn);
+    return()=>window.removeEventListener("resize",fn);
+  },[]);
+  const isPC=winW>=768;
+
+  // 주간: 고정 88px 가로스크롤 / 월간: PC 100px · 모바일 48px
+  const CELL_W = isWeek ? "88px" : (isPC ? "100px" : "48px");
+  const GRID_W = isWeek ? "calc(88px * 7 + 6px)" : (isPC ? "calc(100px * 7 + 6px)" : "calc(48px * 7 + 6px)");
   const CELL_H = isWeek ? (isPC?150:130) : (isPC?120:80);
 
   return(
@@ -1210,418 +1228,206 @@ function ServiceSearch({services,setServices}){
 }
 
 // ── NF 공통 필드 ──────────────────────────────────────
-function NF({label,children}){
-  return(
-    <div style={{marginBottom:16}}>
-      <div style={{fontSize:11,fontWeight:600,color:"#475569",marginBottom:7}}>{label}</div>
-      {children}
-    </div>
-  );
-}
 
-// ── 예약 모달 ─────────────────────────────────────────
-function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
-  const isAD=modal.slot==="종일";
-  const isExtra=modal.slot==="추가";
-  const ex=modal.record;
-  const [slotType,setSlotType]=useState(isAD?"종일":isExtra?"추가":"시간");
-  const [slotTime,setSlotTime]=useState(isAD||isExtra?null:(ex?.slot||modal.slot));
-  const [multiDay,setMultiDay]=useState(Number(ex?.multiDay)||1);
-  const [phoneInput,setPhoneInput]=useState("");
-  const [custId,setCustId]=useState(ex?.customerId||"");
-  const [selectedCar,setSelectedCar]=useState(ex?.carModel||"");
-  // 예약구분 - 기존 고객의 bookingType 가져오되 직접 변경 가능
-  const [bookingType,setBookingType]=useState(()=>{
-    if(ex?.customerId){
-      const c=customers.find(c=>c.id===String(ex.customerId)||c.id===ex.customerId);
-      return c?.bookingType||"신규";
-    }
-    return "신규";
-  });
-  const [services,setServices]=useState(ex?.services||[]);
-  const [amount,setAmount]=useState(ex?.amount||"");
-  const [payment,setPayment]=useState(ex?.payment||"카드");
-  const [memo,setMemo]=useState(ex?.memo||"");
+// ── 빠른 예약 입력 모달 (통화 후 즉시 입력용) ──────────
+function QuickBookModal({customers,onSave,onClose}){
+  const [step,setStep]=useState(1); // 1:고객검색 2:입력
+  const [query,setQuery]=useState("");
+  const [selCust,setSelCust]=useState(null);
+  const [date,setDate]=useState(todayStr());
+  const [slot,setSlot]=useState("10:00");
+  const [svcInput,setSvcInput]=useState("");
+  const [amount,setAmount]=useState("");
+  const [payment,setPayment]=useState("카드");
 
-  useEffect(()=>{
-    if(ex?.customerId){
-      const c=customers.find(c=>c.id===String(ex.customerId)||c.id===ex.customerId);
-      if(c){setPhoneInput(c.name||c.phone);setSelectedCar(ex.carModel||c.cars?.[0]||"");setBookingType(c.bookingType||"신규");}
-    }
-  },[]);
-
-  const searchResults=useMemo(()=>{
-    const q=phoneInput.replace(/[^\d]/g,"");
-    if(phoneInput.length<2)return[];
+  const results=useMemo(()=>{
+    if(query.length<2) return[];
+    const q=query.replace(/[^\d]/g,"");
     return customers.filter(c=>{
       const cp=(c.phone||"").replace(/[^\d]/g,"");
-      return cp.endsWith(q)||cp.includes(q)||(c.name||"").includes(phoneInput);
-    }).slice(0,5);
-  },[phoneInput,customers]);
+      return cp.endsWith(q)||cp.includes(q)||(c.name||"").toLowerCase().includes(query.toLowerCase());
+    }).slice(0,6);
+  },[query,customers]);
 
-  const selCust=customers.find(c=>c.id===custId);
-  const toggle=s=>setServices(p=>p.includes(s)?p.filter(x=>x!==s):[...p,s]);
+  const services=svcInput.split(",").map(s=>s.trim()).filter(Boolean);
 
   function handleSave(){
-    if(!custId||!services.length||!amount)return alert("고객, 작업내용, 가격을 입력해주세요.");
-    const fs=slotType==="종일"?"종일":slotType==="추가"?"추가":slotTime;
-    if(slotType==="시간"&&!fs)return alert("시간을 선택해주세요.");
-    onSave({id:ex?.id,customerId:String(custId),date:modal.date,slot:fs,multiDay:slotType==="종일"?multiDay:1,services,payment,amount:Number(amount),memo,carModel:selectedCar});
+    if(!selCust||!services.length||!amount) return alert("고객·작업내용·금액을 입력해주세요.");
+    onSave({
+      customerId:String(selCust.id),
+      date,slot,multiDay:1,
+      services,payment,
+      amount:Number(String(amount).replace(/[^\d]/g,"")),
+      memo:"",carModel:selCust.cars?.[0]||""
+    });
   }
 
-  const iStyle={width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",background:"#fff",color:"#0f172a",fontFamily:"'Noto Sans KR',sans-serif"};
-  const chip=(active,color)=>({padding:"6px 12px",borderRadius:8,border:`1.5px solid ${active?color||"#1e293b":"#e2e8f0"}`,background:active?color||"#1e293b":"#fff",color:active?"#fff":"#475569",fontSize:12,cursor:"pointer",fontWeight:600,transition:"all 0.15s"});
+  const iStyle={width:"100%",padding:"11px 14px",border:"1.5px solid #e2e8f0",borderRadius:10,
+    fontSize:14,boxSizing:"border-box",fontFamily:"'Noto Sans KR',sans-serif",background:"#fff",color:"#0f172a"};
 
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.4)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:20,width:"100%",maxWidth:520,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 -8px 32px rgba(0,0,0,0.12)",border:"1px solid #e2e8f0"}} onClick={e=>e.stopPropagation()}>
-        <div style={{width:40,height:3,background:"#1e293b",borderRadius:2,margin:"0 auto 16px"}}/>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,color:"#1e293b"}}>{ex?"EDIT BOOKING":"NEW BOOKING"}</span>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"#94a3b8"}}>✕</button>
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",zIndex:300,
+      display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+      onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:500,
+        boxShadow:"0 -8px 32px rgba(0,0,0,0.2)",maxHeight:"92vh",display:"flex",flexDirection:"column"}}
+        onClick={e=>e.stopPropagation()}>
+
+        {/* 핸들 + 헤더 */}
+        <div style={{padding:"12px 18px 10px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
+          <div style={{width:36,height:3,background:"#1e293b",borderRadius:2,margin:"0 auto 12px"}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontWeight:800,fontSize:16,color:"#1e293b"}}>⚡ 빠른 예약 등록</div>
+              <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>통화 후 바로 입력</div>
+            </div>
+            <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:8,
+              padding:"6px 10px",fontSize:16,cursor:"pointer",color:"#64748b"}}>✕</button>
+          </div>
         </div>
 
-        <NF label="📅 예약날짜">
-          <div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{modal.date.replace(/-/g,".")} · {WD(modal.date)}</div>
-        </NF>
+        <div style={{overflowY:"auto",padding:"14px 18px",flex:1}}>
 
-        <NF label="⏰ 예약시간">
-          <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-            {TIME_SLOTS.map(s=>(
-              <button key={s} onClick={()=>{setSlotType("시간");setSlotTime(s);}}
-                style={chip(slotType==="시간"&&slotTime===s,SC_STYLE[s]?.border||SC[s])}>{s}</button>
-            ))}
-            <button onClick={()=>setSlotType("종일")} style={chip(slotType==="종일","#8b5cf6")}>◆ 종일</button>
-            <button onClick={()=>setSlotType("추가")}
-              style={{...chip(slotType==="추가","#94a3b8"),fontSize:11}}>+ 추가</button>
-          </div>
-          {slotType==="추가"&&(
-            <div style={{marginTop:8,background:"#f8fafc",borderRadius:8,padding:"8px 12px",border:"1px solid #e2e8f0",fontSize:12,color:"#64748b"}}>
-              🔧 작업세차 / 응급 / 기타 추가 작업으로 기록됩니다
-            </div>
-          )}
-          {slotType==="종일"&&(
-            <div style={{marginTop:10}}>
-              <div style={{fontSize:11,fontWeight:600,color:"#475569",marginBottom:7}}>작업 기간</div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {[1,2,3,4,5,6,7].map(d=>(
-                  <button key={d} onClick={()=>setMultiDay(d)} style={chip(multiDay===d,"#ef4444")}>{d}일</button>
-                ))}
-              </div>
-              {multiDay>1&&<div style={{background:"#fef2f2",borderRadius:7,padding:"7px 10px",fontSize:11,color:"#dc2626",fontWeight:600,marginTop:8,border:"1px solid #fecaca"}}>
-                {modal.date.replace(/-/g,".")}({WD(modal.date)}) ~ {addDays(modal.date,multiDay-1).replace(/-/g,".")}({WD(addDays(modal.date,multiDay-1))}) · {multiDay}일
-              </div>}
-            </div>
-          )}
-        </NF>
-
-        <NF label="👤 전화번호 검색">
-          <div style={{position:"relative"}}>
-            <div style={{display:"flex",gap:8}}>
-              <input placeholder="뒷4자리 또는 고객명" value={phoneInput}
-                onChange={e=>{setPhoneInput(e.target.value);setCustId("");setSelectedCar("");}}
-                style={{...iStyle,flex:1}}/>
-              <button onClick={onAddCustomer} style={{...chip(false),whiteSpace:"nowrap",border:"1.5px solid #e2e8f0"}}>+ 신규</button>
-            </div>
-            {searchResults.length>0&&!custId&&(
-              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:10,
-                background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden",boxShadow:"0 8px 24px rgba(0,0,0,0.1)"}}>
-                {searchResults.map(c=>(
-                  <div key={c.id} onClick={()=>{setCustId(c.id);setPhoneInput(c.name||c.phone);setSelectedCar(c.cars?.[0]||"");}}
-                    style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #f1f5f9"}}
-                    onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
-                    onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                    {c.name&&<div style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{c.name}</div>}
-                    <div style={{fontSize:12,color:"#475569",marginTop:c.name?2:0}}>{c.phone}</div>
-                    <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{(c.cars||[]).join(", ")||"차종 없음"}</div>
+          {/* STEP 1: 고객 검색 */}
+          {step===1&&(
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8}}>👤 고객 검색 (전화번호 뒷자리 또는 이름)</div>
+              <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
+                placeholder="예: 4051 또는 홍길동"
+                style={iStyle}/>
+              <div style={{marginTop:8}}>
+                {results.map(c=>{
+                  const btc=BT[c.bookingType]||BT["신규"];
+                  return(
+                    <div key={c.id} onClick={()=>{setSelCust(c);setStep(2);}}
+                      style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                        padding:"10px 14px",borderRadius:10,marginBottom:6,
+                        background:"#f8fafc",border:"1px solid #e2e8f0",cursor:"pointer"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f1f5f9"}
+                      onMouseLeave={e=>e.currentTarget.style.background="#f8fafc"}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>{c.name||"이름없음"}</div>
+                        <div style={{fontSize:12,color:"#64748b",marginTop:1}}>{c.phone}</div>
+                        <div style={{fontSize:11,color:"#94a3b8"}}>{(c.cars||[]).join(", ")||"차종없음"}</div>
+                      </div>
+                      <span style={{fontSize:10,fontWeight:700,background:btc.bg,color:btc.color,
+                        padding:"2px 8px",borderRadius:6,border:`1px solid ${btc.border}`}}>{c.bookingType}</span>
+                    </div>
+                  );
+                })}
+                {query.length>=2&&results.length===0&&(
+                  <div style={{textAlign:"center",padding:"20px",color:"#94a3b8",fontSize:13}}>
+                    검색 결과 없음<br/>
+                    <button onClick={()=>{setSelCust({id:"new",name:query,phone:query,cars:[],bookingType:"신규"});setStep(2);}}
+                      style={{marginTop:10,background:"#1e293b",color:"#fff",border:"none",
+                        borderRadius:8,padding:"8px 16px",fontSize:12,cursor:"pointer",fontWeight:700}}>
+                      + 신규 고객으로 계속
+                    </button>
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-        </NF>
-
-        {selCust&&(
-          <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",marginBottom:16,border:"1px solid #e2e8f0"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <div>
-                {selCust.name&&<div style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>{selCust.name}</div>}
-                <div style={{fontSize:12,color:"#475569",marginTop:selCust.name?2:0}}>{selCust.phone}</div>
-              </div>
-              <span style={{fontSize:9,fontWeight:700,background:BT[selCust.bookingType]?.bg,color:BT[selCust.bookingType]?.color,padding:"2px 6px",borderRadius:5,border:`1px solid ${BT[selCust.bookingType]?.border}`}}>{selCust.bookingType}</span>
             </div>
-            {selCust.cars&&selCust.cars.length>1?(
-              <div>
-                <div style={{fontSize:11,fontWeight:600,color:"#475569",marginBottom:6}}>🚗 차종 선택</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                  {selCust.cars.map(car=>(
-                    <button key={car} onClick={()=>setSelectedCar(car)}
-                      style={{padding:"5px 10px",borderRadius:7,border:"1.5px solid",fontSize:11,cursor:"pointer",fontWeight:600,
-                        borderColor:selectedCar===car?"#1e293b":"#e2e8f0",background:selectedCar===car?"#1e293b":"#fff",
-                        color:selectedCar===car?"#fff":"#475569"}}>
-                      {car}
+          )}
+
+          {/* STEP 2: 예약 정보 입력 */}
+          {step===2&&selCust&&(
+            <div>
+              {/* 선택된 고객 */}
+              <div style={{background:"#1e293b",borderRadius:12,padding:"12px 14px",marginBottom:14,
+                display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{color:"#fff",fontWeight:700,fontSize:14}}>{selCust.name||selCust.phone}</div>
+                  <div style={{color:"rgba(255,255,255,0.5)",fontSize:11,marginTop:2}}>{selCust.phone}</div>
+                </div>
+                <button onClick={()=>{setStep(1);setSelCust(null);}}
+                  style={{background:"rgba(255,255,255,0.1)",border:"none",color:"rgba(255,255,255,0.7)",
+                    borderRadius:7,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>변경</button>
+              </div>
+
+              {/* 날짜 */}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:6}}>📅 날짜</div>
+                <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={iStyle}/>
+              </div>
+
+              {/* 시간 슬롯 */}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:6}}>⏰ 시간</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {["10:00","13:00","16:00","종일","추가"].map(s=>{
+                    const ss=SC_STYLE[s]||SC_STYLE["추가"];
+                    const active=slot===s;
+                    return(
+                      <button key={s} onClick={()=>setSlot(s)}
+                        style={{padding:"8px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                          border:`1.5px solid ${active?ss.border:"#e2e8f0"}`,
+                          background:active?ss.bg:"#fff",color:active?ss.text:"#94a3b8",
+                          transition:"all 0.15s"}}>
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 작업내용 */}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:6}}>🔧 작업내용 <span style={{fontWeight:400,color:"#94a3b8"}}>(쉼표로 구분)</span></div>
+                <input value={svcInput} onChange={e=>setSvcInput(e.target.value)}
+                  placeholder="예: 디테일링, 유리막코팅" style={iStyle}/>
+                {/* 자주 쓰는 작업 빠른선택 */}
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:7}}>
+                  {["디테일링","세차","유리막코팅","PPF","광택","작업세차"].map(s=>(
+                    <button key={s} onClick={()=>setSvcInput(p=>p?`${p}, ${s}`:s)}
+                      style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",
+                        background:"#f1f5f9",border:"1px solid #e2e8f0",color:"#475569",fontWeight:600}}>
+                      {s}
                     </button>
                   ))}
                 </div>
-                {selectedCar&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600,marginTop:6}}>✅ {selectedCar}</div>}
               </div>
-            ):(
-              <div style={{fontSize:13,color:"#64748b"}}>🚗 {selCust.cars?.[0]||"차종 없음"}</div>
-            )}
-          </div>
-        )}
 
-        <NF label="🔧 작업내용">
-          <ServiceSearch services={services} setServices={setServices}/>
-        </NF>
-
-        <NF label="💰 가격">
-          <input type="number" placeholder="예: 80000" value={amount} onChange={e=>setAmount(e.target.value)} style={iStyle}/>
-          {amount&&<div style={{fontSize:12,color:"#1e293b",fontWeight:700,marginTop:5}}>{formatKRW(amount)}</div>}
-        </NF>
-
-        <NF label="🏷️ 예약구분">
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {BOOKING_TYPES.map(bt=>{
-              const btc=BT[bt];
-              const active=bookingType===bt;
-              return(
-                <button key={bt} onClick={()=>setBookingType(bt)}
-                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${active?btc.color:"#e2e8f0"}`,
-                    background:active?btc.bg:"#fff",color:active?btc.color:"#94a3b8",
-                    fontSize:12,cursor:"pointer",fontWeight:700,transition:"all 0.15s"}}>
-                  {bt}
-                </button>
-              );
-            })}
-          </div>
-        </NF>
-
-        <NF label="💳 결제">
-          <div style={{display:"flex",gap:7}}>
-            {PAYMENTS.map(p=><button key={p} onClick={()=>setPayment(p)} style={chip(payment===p)}>{p}</button>)}
-          </div>
-        </NF>
-
-        <NF label="📝 비고">
-          <textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항..."
-            style={{...iStyle,minHeight:60,resize:"vertical"}}/>
-        </NF>
-
-        <div style={{display:"flex",gap:10,marginTop:12}}>
-          {ex&&<button onClick={()=>{if(window.confirm("삭제할까요?"))onDelete(ex.id);}}
-            style={{padding:"12px 14px",background:"#fff",color:"#ef4444",border:"1.5px solid #fecaca",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>삭제</button>}
-          <button onClick={handleSave}
-            style={{flex:1,padding:"13px",background:"#1e293b",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}>
-            저장
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 고객 모달 ─────────────────────────────────────────
-function CustomerModal({customer,records,onSave,onDelete,onClose}){
-  const [name,setName]=useState(customer?.name||"");
-  const [phone,setPhone]=useState(customer?.phone||"");
-  const [carsInput,setCarsInput]=useState((customer?.cars||[]).join(", "));
-  const [bookingType,setBookingType]=useState(customer?.bookingType||"신규");
-  const [memo,setMemo]=useState(customer?.memo||"");
-  const iStyle={width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",background:"#fff",color:"#0f172a"};
-  function handleSave(){
-    if(!phone)return alert("전화번호를 입력해주세요.");
-    const cars=carsInput.split(",").map(s=>s.trim()).filter(Boolean);
-    onSave({id:customer?.id,name,phone,cars,bookingType,memo});
-  }
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.4)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:20,width:"100%",maxWidth:520,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 -8px 32px rgba(0,0,0,0.12)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{width:40,height:3,background:"#1e293b",borderRadius:2,margin:"0 auto 16px"}}/>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,color:"#1e293b"}}>{customer?"EDIT CLIENT":"NEW CLIENT"}</span>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"#94a3b8"}}>✕</button>
-        </div>
-        <NF label="고객명"><input value={name} onChange={e=>setName(e.target.value)} placeholder="홍길동 (선택)" style={iStyle}/></NF>
-        <NF label="전화번호 *"><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="010-0000-0000" style={iStyle}/></NF>
-        <NF label="차종 (여러 개면 쉼표로 구분)">
-          <input value={carsInput} onChange={e=>setCarsInput(e.target.value)} placeholder="아반떼, 포르쉐 카레라" style={iStyle}/>
-          {carsInput&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:8}}>
-            {carsInput.split(",").map(s=>s.trim()).filter(Boolean).map((car,i)=>(
-              <span key={i} style={{fontSize:11,background:"#f1f5f9",color:"#475569",padding:"2px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontWeight:600}}>🚗 {car}</span>
-            ))}
-          </div>}
-        </NF>
-        <NF label="예약구분">
-          <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-            {BOOKING_TYPES.map(bt=>{const c=BT[bt];return(
-              <button key={bt} onClick={()=>setBookingType(bt)}
-                style={{padding:"6px 12px",borderRadius:8,border:`1.5px solid ${bookingType===bt?c.color:"#e2e8f0"}`,
-                  background:bookingType===bt?c.bg:"#fff",color:bookingType===bt?c.color:"#475569",fontSize:12,cursor:"pointer",fontWeight:600}}>{bt}</button>
-            );})}
-          </div>
-        </NF>
-        <NF label="메모"><textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항 등..." style={{...iStyle,minHeight:60,resize:"vertical"}}/></NF>
-        {records&&records.length>0&&(
-          <NF label={`방문이력 · ${records.length}건`}>
-            <div style={{maxHeight:140,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:8}}>
-              {[...records].sort((a,b)=>b.date.localeCompare(a.date)).map(r=>(
-                <div key={r.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",borderBottom:"1px solid #f1f5f9",gap:6,alignItems:"center"}}>
-                  <span style={{fontSize:11,color:"#475569"}}>{r.date} {r.slot}</span>
-                  <span style={{fontSize:10,color:"#94a3b8",flex:1,textAlign:"center"}}>{(r.services||[]).join(", ")}</span>
-                  <span style={{fontSize:11,fontWeight:700,color:"#1e293b"}}>{formatKRW(r.amount)}</span>
+              {/* 금액 */}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:6}}>💰 금액</div>
+                <input type="number" value={amount} onChange={e=>setAmount(e.target.value)}
+                  placeholder="예: 130000" style={iStyle}/>
+                {/* 자주 쓰는 금액 */}
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:7}}>
+                  {[80000,100000,130000,160000,200000,300000].map(n=>(
+                    <button key={n} onClick={()=>setAmount(String(n))}
+                      style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",
+                        background:"#f1f5f9",border:"1px solid #e2e8f0",color:"#475569",fontWeight:600}}>
+                      {(n/10000).toFixed(0)}만
+                    </button>
+                  ))}
                 </div>
-              ))}
+                {amount&&<div style={{fontSize:12,color:"#1e293b",fontWeight:700,marginTop:5}}>{formatKRW(Number(String(amount).replace(/[^\d]/g,"")))||""}</div>}
+              </div>
+
+              {/* 결제 */}
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:6}}>💳 결제</div>
+                <div style={{display:"flex",gap:8}}>
+                  {["카드","현금"].map(p=>(
+                    <button key={p} onClick={()=>setPayment(p)}
+                      style={{flex:1,padding:"10px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",
+                        border:`1.5px solid ${payment===p?"#1e293b":"#e2e8f0"}`,
+                        background:payment===p?"#1e293b":"#fff",
+                        color:payment===p?"#fff":"#94a3b8"}}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 저장 */}
+              <button onClick={handleSave}
+                style={{width:"100%",padding:"14px",background:"#1e293b",color:"#fff",border:"none",
+                  borderRadius:12,fontSize:15,fontWeight:800,cursor:"pointer",letterSpacing:0.5}}>
+                ✅ 예약 등록
+              </button>
             </div>
-          </NF>
-        )}
-        <div style={{display:"flex",gap:10,marginTop:16}}>
-          {customer&&<button onClick={()=>{if(window.confirm("삭제할까요?"))onDelete(customer.id);}}
-            style={{padding:"12px 14px",background:"#fff",color:"#ef4444",border:"1.5px solid #fecaca",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer"}}>삭제</button>}
-          <button onClick={handleSave}
-            style={{flex:1,padding:"13px",background:"#1e293b",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}>저장</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 메인 앱 ──────────────────────────────────────────
-// ── 대시보드 컴포넌트 ─────────────────────────────────
-function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBookingModal,setCustModal}){
-  const today=todayStr();
-  const now=new Date();
-  const tm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-
-  const todayRecs=useMemo(()=>records.filter(r=>r.date===today),[records,today]);
-  const monthRecs=useMemo(()=>records.filter(r=>r.date.startsWith(tm)),[records,tm]);
-  const todayAmt=todayRecs.reduce((s,r)=>s+Number(r.amount),0);
-  const monthAmt=monthRecs.reduce((s,r)=>s+Number(r.amount),0);
-
-  // 최근 7일 예약
-  const weekDates=getWeekDates(today);
-  const recent=useMemo(()=>
-    [...records].filter(r=>r.date>=weekDates[0]&&r.date<=weekDates[6])
-      .sort((a,b)=>b.date.localeCompare(a.date)||0).slice(0,10)
-  ,[records,today]);
-
-  // 오늘 슬롯별 예약
-  const slots=["10:00","13:00","16:00"];
-  const slotOrder={"종일":0,"10:00":1,"13:00":2,"16:00":3,"추가":4};
-  const todaySorted=[...todayRecs].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
-
-  const StatCard=({label,value,sub,gradient,icon})=>(
-    <div className="stat-card" style={{background:gradient,position:"relative",overflow:"hidden"}}>
-      <div style={{position:"absolute",top:-10,right:-10,fontSize:40,opacity:0.2}}>{icon}</div>
-      <div style={{fontSize:11,fontWeight:600,opacity:0.8,marginBottom:6,letterSpacing:0.3}}>{label}</div>
-      <div style={{fontSize:20,fontWeight:900,lineHeight:1.2,wordBreak:"break-all",marginBottom:4}}>{value}</div>
-      {sub&&<div style={{fontSize:10,opacity:0.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub}</div>}
-    </div>
-  );
-
-  return(
-    <div style={{animation:"fadeUp 0.3s ease"}}>
-      {/* 날짜 헤더 */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:13,color:"#94a3b8",fontWeight:500}}>{now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일 ({["일","월","화","수","목","금","토"][now.getDay()]})</div>
-        <div style={{fontSize:22,fontWeight:800,color:"#1e293b",marginTop:2}}>👋 오늘도 좋은 하루!</div>
-      </div>
-
-      {/* 스탯 카드 */}
-      <div className="stat-grid">
-        <StatCard label="오늘 입고" value={`${todayRecs.length}대`} sub={`이번달 ${monthRecs.length}대`}
-          gradient="linear-gradient(135deg,#667eea,#764ba2)" icon="🚗"/>
-        <StatCard label="오늘 매출" value={formatKRW(todayAmt)} sub={`이번달 ${formatKRW(monthAmt)}`}
-          gradient="linear-gradient(135deg,#f093fb,#f5576c)" icon="💰"/>
-        <StatCard label="현금" value={formatKRW(todayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0))}
-          sub="오늘 현금 수입" gradient="linear-gradient(135deg,#4facfe,#00f2fe)" icon="💵"/>
-        <StatCard label="카드" value={formatKRW(todayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0))}
-          sub="오늘 카드 수입" gradient="linear-gradient(135deg,#43e97b,#38f9d7)" icon="💳"/>
-      </div>
-
-      {/* 2단 분할 - 모바일에서 1단으로 자동 변환 */}
-      <div className="dash-grid">
-        {/* 오늘 예약 현황 */}
-        <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>📅 오늘 예약 현황</div>
-            <button onClick={()=>onAddBooking(today)}
-              style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>
-              + 추가
-            </button>
-          </div>
-          {todaySorted.length===0?(
-            <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1"}}>
-              <div style={{fontSize:24,marginBottom:8}}>📋</div>
-              <div style={{fontSize:13}}>오늘 예약이 없습니다</div>
-            </div>
-          ):(
-            todaySorted.map(rec=>{
-              const cust=getCustomer(rec.customerId);
-              const ac=amtColor(rec.amount,cust?.bookingType);
-              const ss=SC_STYLE[rec.slot]||SC_STYLE["추가"];
-              return(
-                <div key={rec.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"9px 10px",
-                  borderRadius:10,marginBottom:6,background:ac.bg,border:`1px solid ${ac.border}`}}>
-                  <span style={{fontSize:9,fontWeight:700,background:ss.bg,color:ss.text,
-                    padding:"2px 5px",borderRadius:5,border:`1px solid ${ss.border}`,
-                    flexShrink:0,minWidth:38,textAlign:"center",marginTop:1}}>
-                    {rec.slot==="종일"?"종일":rec.slot}
-                  </span>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:12,color:"#0f172a",
-                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {cust?.name||cust?.phone||"미등록"}
-                    </div>
-                    <div style={{fontSize:11,color:"#64748b",marginTop:1,
-                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {(rec.services||[]).join(", ")}
-                    </div>
-                  </div>
-                  <div style={{fontSize:11,fontWeight:700,color:ac.text,flexShrink:0,marginTop:1}}>
-                    {formatKRW(rec.amount)}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* 최근 작업 내역 */}
-        <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>🔧 최근 작업 내역</div>
-            <button onClick={()=>setTab("customers")}
-              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
-              전체보기
-            </button>
-          </div>
-          {recent.length===0?(
-            <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1",fontSize:13}}>작업 내역 없음</div>
-          ):(
-            recent.map(rec=>{
-              const cust=getCustomer(rec.customerId);
-              const ac=amtColor(rec.amount,cust?.bookingType);
-              return(
-                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",
-                  borderBottom:"1px solid #f1f5f9"}}>
-                  <div style={{width:7,height:7,borderRadius:"50%",background:ac.border,flexShrink:0}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{fontWeight:600,fontSize:12,color:"#1e293b",
-                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100px"}}>
-                        {cust?.name||cust?.phone||"미등록"}
-                      </span>
-                      <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{rec.date.slice(5).replace("-",".")}</span>
-                    </div>
-                    <div style={{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {(rec.services||[]).join(", ")}
-                    </div>
-                  </div>
-                  <div style={{fontSize:11,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
-                </div>
-              );
-            })
           )}
         </div>
       </div>
@@ -1629,7 +1435,7 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
   );
 }
 
-function App(){
+
   const db=window.__db;
   const {customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord}=useData(db);
   const [tab,setTab]=useState("dashboard");
@@ -1642,6 +1448,7 @@ function App(){
   const [bookingModal,setBookingModal]=useState(null);
   const [custModal,setCustModal]=useState(null);
   const [dayPopup,setDayPopup]=useState(null);
+  const [quickBook,setQuickBook]=useState(false);
   const closeSales=useCallback(()=>setShowSales(false),[]);
 
   function goPrev(){
@@ -1764,6 +1571,10 @@ function App(){
           <div className="nav-section-label" style={{marginTop:16}}>빠른 메뉴</div>
           <button className="nav-item" onClick={()=>{setBookingModal({date:todayStr(),slot:"10:00",record:null});setSideOpen(false);}}>
             <span className="nav-icon">➕</span>예약 등록
+          </button>
+          <button className="nav-item" onClick={()=>{setQuickBook(true);setSideOpen(false);}}
+            style={{background:"rgba(99,102,241,0.15)",color:"#a5b4fc",borderLeft:"3px solid #6366f1"}}>
+            <span className="nav-icon">⚡</span>빠른 예약
           </button>
           <button className="nav-item" onClick={()=>{setCustModal("new");setSideOpen(false);}}>
             <span className="nav-icon">👤</span>신규 고객
@@ -1989,6 +1800,15 @@ function App(){
         </div>
       </div>
 
+      {/* 모바일 플로팅 빠른예약 버튼 */}
+      <button className="fab-quick" onClick={()=>setQuickBook(true)} title="빠른 예약">⚡</button>
+
+      {quickBook&&(
+        <QuickBookModal
+          customers={customers}
+          onSave={async d=>{await saveRecord(d);setQuickBook(false);}}
+          onClose={()=>setQuickBook(false)}/>
+      )}
       {dayPopup&&(
         <DayPopup date={dayPopup} records={records} customers={customers} getCustomer={getCustomer}
           onClose={()=>setDayPopup(null)}
