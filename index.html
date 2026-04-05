@@ -51,7 +51,6 @@
       min-height: 100vh;
       background: #f1f5f9;
     }
-    /* 사이드바 */
     .sidebar {
       width: 220px;
       min-width: 220px;
@@ -60,14 +59,12 @@
       flex-direction: column;
       position: fixed;
       top: 0; left: 0; bottom: 0;
-      z-index: 100;
+      z-index: 200;
       box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+      transition: transform 0.25s ease;
     }
-    .sidebar-logo {
-      padding: 20px 16px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .sidebar-nav { padding: 12px 8px; flex: 1; }
+    .sidebar-logo { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .sidebar-nav { padding: 12px 8px; flex: 1; overflow-y: auto; }
     .nav-section-label {
       font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.3);
       letter-spacing: 1.5px; padding: 8px 10px 4px; text-transform: uppercase;
@@ -80,49 +77,58 @@
       width: 100%; text-align: left;
     }
     .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
-    .nav-item.active { background: rgba(255,255,255,0.12); color: #fff; }
+    .nav-item.active { background: rgba(255,255,255,0.15); color: #fff; }
     .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
-    /* 메인 콘텐츠 */
     .main-wrap {
       margin-left: 220px;
       flex: 1;
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      min-width: 0;
     }
     .topbar {
       background: #fff;
       border-bottom: 1px solid #e2e8f0;
-      padding: 0 24px;
-      height: 56px;
+      padding: 0 20px;
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       position: sticky; top: 0; z-index: 50;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .page-content { padding: 20px 24px; max-width: 1400px; }
-    /* 대시보드 카드 */
-    .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
-    .stat-card {
-      border-radius: 14px; padding: 20px; color: #fff;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    .page-content { padding: 16px 20px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+    .stat-card { border-radius: 14px; padding: 18px 16px; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
+    .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    /* 오버레이 */
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 199;
     }
-    /* 모바일 - 사이드바 숨김 */
+    .sidebar-overlay.visible { display: block; }
+
+    /* 햄버거 버튼 - PC에선 숨김 */
+    .mobile-menu-btn { display: none; }
+
+    /* 모바일 */
     @media(max-width:767px){
-      .sidebar { transform: translateX(-100%); transition: transform 0.25s; }
+      .sidebar { transform: translateX(-220px); }
       .sidebar.open { transform: translateX(0); }
       .main-wrap { margin-left: 0; }
-      .stat-grid { grid-template-columns: repeat(2,1fr); }
-      .page-content { padding: 14px 16px; }
-      .sidebar-overlay { display: block !important; }
+      .mobile-menu-btn { display: flex !important; align-items: center; justify-content: center; }
+      .stat-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
+      .dash-grid { grid-template-columns: 1fr; }
+      .page-content { padding: 12px 14px; }
+      .topbar { padding: 0 14px; }
     }
-    .mobile-menu-btn { display: none !important; }
-    @media(max-width:767px){ .mobile-menu-btn { display: flex !important; } }
-    .sidebar-overlay {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-      z-index: 99;
+    @media(max-width:480px){
+      .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat-card { padding: 14px 12px; }
     }
+
     .cal-swipe { touch-action: pan-y; user-select: none; }
     .tbl-wrap  { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .tbl-wrap table { border-collapse:collapse; min-width:600px; width:100%; }
@@ -134,7 +140,7 @@
     .tbl-wrap td.mo  { font-weight:600; color:#475569; background:#f8fafc; }
     @media(min-width:768px){
       .pc-split{display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start;}
-      .pc-sticky{position:sticky;top:76px;}
+      .pc-sticky{position:sticky;top:72px;}
     }
     @media(max-width:767px){ .pc-split{display:block;} }
   </style>
@@ -1231,6 +1237,14 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
   const [phoneInput,setPhoneInput]=useState("");
   const [custId,setCustId]=useState(ex?.customerId||"");
   const [selectedCar,setSelectedCar]=useState(ex?.carModel||"");
+  // 예약구분 - 기존 고객의 bookingType 가져오되 직접 변경 가능
+  const [bookingType,setBookingType]=useState(()=>{
+    if(ex?.customerId){
+      const c=customers.find(c=>c.id===String(ex.customerId)||c.id===ex.customerId);
+      return c?.bookingType||"신규";
+    }
+    return "신규";
+  });
   const [services,setServices]=useState(ex?.services||[]);
   const [amount,setAmount]=useState(ex?.amount||"");
   const [payment,setPayment]=useState(ex?.payment||"카드");
@@ -1239,7 +1253,7 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
   useEffect(()=>{
     if(ex?.customerId){
       const c=customers.find(c=>c.id===String(ex.customerId)||c.id===ex.customerId);
-      if(c){setPhoneInput(c.name||c.phone);setSelectedCar(ex.carModel||c.cars?.[0]||"");}
+      if(c){setPhoneInput(c.name||c.phone);setSelectedCar(ex.carModel||c.cars?.[0]||"");setBookingType(c.bookingType||"신규");}
     }
   },[]);
 
@@ -1373,6 +1387,23 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
           {amount&&<div style={{fontSize:12,color:"#1e293b",fontWeight:700,marginTop:5}}>{formatKRW(amount)}</div>}
         </NF>
 
+        <NF label="🏷️ 예약구분">
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {BOOKING_TYPES.map(bt=>{
+              const btc=BT[bt];
+              const active=bookingType===bt;
+              return(
+                <button key={bt} onClick={()=>setBookingType(bt)}
+                  style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${active?btc.color:"#e2e8f0"}`,
+                    background:active?btc.bg:"#fff",color:active?btc.color:"#94a3b8",
+                    fontSize:12,cursor:"pointer",fontWeight:700,transition:"all 0.15s"}}>
+                  {bt}
+                </button>
+              );
+            })}
+          </div>
+        </NF>
+
         <NF label="💳 결제">
           <div style={{display:"flex",gap:7}}>
             {PAYMENTS.map(p=><button key={p} onClick={()=>setPayment(p)} style={chip(payment===p)}>{p}</button>)}
@@ -1487,15 +1518,11 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
   const todaySorted=[...todayRecs].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
 
   const StatCard=({label,value,sub,gradient,icon})=>(
-    <div className="stat-card" style={{background:gradient}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:600,opacity:0.75,marginBottom:8}}>{label}</div>
-          <div style={{fontSize:26,fontWeight:900,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:0.5,lineHeight:1}}>{value}</div>
-          {sub&&<div style={{fontSize:11,opacity:0.7,marginTop:5}}>{sub}</div>}
-        </div>
-        <div style={{fontSize:28,opacity:0.8}}>{icon}</div>
-      </div>
+    <div className="stat-card" style={{background:gradient,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-10,right:-10,fontSize:40,opacity:0.2}}>{icon}</div>
+      <div style={{fontSize:11,fontWeight:600,opacity:0.8,marginBottom:6,letterSpacing:0.3}}>{label}</div>
+      <div style={{fontSize:20,fontWeight:900,lineHeight:1.2,wordBreak:"break-all",marginBottom:4}}>{value}</div>
+      {sub&&<div style={{fontSize:10,opacity:0.75,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub}</div>}
     </div>
   );
 
@@ -1519,11 +1546,11 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
           sub="오늘 카드 수입" gradient="linear-gradient(135deg,#43e97b,#38f9d7)" icon="💳"/>
       </div>
 
-      {/* 2단 분할 */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      {/* 2단 분할 - 모바일에서 1단으로 자동 변환 */}
+      <div className="dash-grid">
         {/* 오늘 예약 현황 */}
-        <div style={{background:"#fff",borderRadius:14,padding:"18px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>📅 오늘 예약 현황</div>
             <button onClick={()=>onAddBooking(today)}
               style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>
@@ -1541,21 +1568,26 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
               const ac=amtColor(rec.amount,cust?.bookingType);
               const ss=SC_STYLE[rec.slot]||SC_STYLE["추가"];
               return(
-                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",
-                  borderRadius:10,marginBottom:7,background:ac.bg,border:`1px solid ${ac.border}`}}>
+                <div key={rec.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"9px 10px",
+                  borderRadius:10,marginBottom:6,background:ac.bg,border:`1px solid ${ac.border}`}}>
                   <span style={{fontSize:9,fontWeight:700,background:ss.bg,color:ss.text,
-                    padding:"2px 6px",borderRadius:5,border:`1px solid ${ss.border}`,flexShrink:0,minWidth:40,textAlign:"center"}}>
+                    padding:"2px 5px",borderRadius:5,border:`1px solid ${ss.border}`,
+                    flexShrink:0,minWidth:38,textAlign:"center",marginTop:1}}>
                     {rec.slot==="종일"?"종일":rec.slot}
                   </span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:13,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    <div style={{fontWeight:700,fontSize:12,color:"#0f172a",
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       {cust?.name||cust?.phone||"미등록"}
                     </div>
-                    <div style={{fontSize:11,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    <div style={{fontSize:11,color:"#64748b",marginTop:1,
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       {(rec.services||[]).join(", ")}
                     </div>
                   </div>
-                  <div style={{fontSize:12,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:ac.text,flexShrink:0,marginTop:1}}>
+                    {formatKRW(rec.amount)}
+                  </div>
                 </div>
               );
             })
@@ -1563,11 +1595,11 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
         </div>
 
         {/* 최근 작업 내역 */}
-        <div style={{background:"#fff",borderRadius:14,padding:"18px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>🔧 최근 작업 내역</div>
             <button onClick={()=>setTab("customers")}
-              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:600}}>
+              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
               전체보기
             </button>
           </div>
@@ -1578,19 +1610,22 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
               const cust=getCustomer(rec.customerId);
               const ac=amtColor(rec.amount,cust?.bookingType);
               return(
-                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",
-                  borderBottom:"1px solid #f8fafc"}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:ac.border,flexShrink:0}}/>
+                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",
+                  borderBottom:"1px solid #f1f5f9"}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:ac.border,flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                      <span style={{fontWeight:600,fontSize:12,color:"#1e293b"}}>{cust?.name||cust?.phone||"미등록"}</span>
-                      <span style={{fontSize:10,color:"#94a3b8"}}>{rec.date.slice(5).replace("-",".")}</span>
+                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                      <span style={{fontWeight:600,fontSize:12,color:"#1e293b",
+                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100px"}}>
+                        {cust?.name||cust?.phone||"미등록"}
+                      </span>
+                      <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{rec.date.slice(5).replace("-",".")}</span>
                     </div>
                     <div style={{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       {(rec.services||[]).join(", ")}
                     </div>
                   </div>
-                  <div style={{fontSize:12,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
                 </div>
               );
             })
@@ -1683,7 +1718,7 @@ function App(){
 
   return(
     <div className="app-layout">
-      <div className="sidebar-overlay" onClick={()=>setSideOpen(false)} style={{display:sideOpen?"block":"none"}}/>
+      <div className={`sidebar-overlay${sideOpen?" visible":""}`} onClick={()=>setSideOpen(false)}/>
 
       {/* 사이드바 */}
       <aside className={`sidebar${sideOpen?" open":""}`}>
@@ -1724,7 +1759,11 @@ function App(){
         {/* 상단 바 */}
         <div className="topbar">
           <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <button onClick={()=>setSideOpen(v=>!v)} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:7,fontSize:16,cursor:"pointer",color:"#475569",padding:"4px 8px",display:"none"}} className="mobile-menu-btn">☰</button>
+            <button onClick={()=>setSideOpen(v=>!v)}
+              className="mobile-menu-btn"
+              style={{background:"none",border:"1px solid #e2e8f0",borderRadius:7,fontSize:18,cursor:"pointer",color:"#475569",padding:"4px 10px",fontWeight:700,lineHeight:1}}>
+              ☰
+            </button>
             <div style={{fontWeight:700,fontSize:15,color:"#1e293b"}}>{MENU.find(m=>m.id===tab)?.icon} {MENU.find(m=>m.id===tab)?.label}</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
