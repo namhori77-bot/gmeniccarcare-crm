@@ -1716,25 +1716,50 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
 // ── 대시보드 컴포넌트 ─────────────────────────────────
 function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBookingModal,setCustModal}){
   const today=todayStr();
-  const now=new Date();
-  const tm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  // ── 선택 날짜 (좌우 이동) ──────────────────────────────
+  const [selDay,setSelDay]=useState(today);
+  const selDate=new Date(selDay);
+  const selDt=selDay;
+  const selYM=selDay.slice(0,7);
 
-  const todayRecs=useMemo(()=>records.filter(r=>r.date===today),[records,today]);
-  const monthRecs=useMemo(()=>records.filter(r=>r.date.startsWith(tm)),[records,tm]);
-  const todayAmt=todayRecs.reduce((s,r)=>s+Number(r.amount),0);
+  // ── 미니 캘린더 표시 여부 ──────────────────────────────
+  const [showMini,setShowMini]=useState(false);
+  const [miniY,setMiniY]=useState(selDate.getFullYear());
+  const [miniM,setMiniM]=useState(selDate.getMonth());
+
+  // 날짜 이동할 때 미니캘린더 년월도 동기화
+  useEffect(()=>{
+    setMiniY(new Date(selDay).getFullYear());
+    setMiniM(new Date(selDay).getMonth());
+  },[selDay]);
+
+  // ── 선택일 데이터 ──────────────────────────────────────
+  const dayRecs=useMemo(()=>records.filter(r=>{
+    if(r.slot==="종일") return spanDates(r.date,r.multiDay||1).includes(selDt);
+    return r.date===selDt;
+  }),[records,selDt]);
+  const monthRecs=useMemo(()=>records.filter(r=>r.date.startsWith(selYM)),[records,selYM]);
+  const dayAmt=dayRecs.reduce((s,r)=>s+Number(r.amount),0);
   const monthAmt=monthRecs.reduce((s,r)=>s+Number(r.amount),0);
-
-  // 최근 7일 예약
-  const weekDates=getWeekDates(today);
-  const recent=useMemo(()=>
-    [...records].filter(r=>r.date>=weekDates[0]&&r.date<=weekDates[6])
-      .sort((a,b)=>b.date.localeCompare(a.date)||0).slice(0,10)
-  ,[records,today]);
-
-  // 오늘 슬롯별 예약
-  const slots=["10:00","13:00","16:00"];
   const slotOrder={"종일":0,"10:00":1,"13:00":2,"16:00":3,"추가":4};
-  const todaySorted=[...todayRecs].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
+  const daySorted=[...dayRecs].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
+
+  // ── 미니 캘린더 데이터 ────────────────────────────────
+  const miniDays=useMemo(()=>getDays(miniY,miniM),[miniY,miniM]);
+  // 날짜별 예약 건수 map
+  const dayCountMap=useMemo(()=>{
+    const m={};
+    records.forEach(r=>{
+      const d=r.date;
+      m[d]=(m[d]||0)+1;
+    });
+    return m;
+  },[records]);
+
+  // ── 헬퍼 ─────────────────────────────────────────────
+  const isToday=selDt===today;
+  const WDay=["일","월","화","수","목","금","토"][selDate.getDay()];
+  const dateLabel=`${selDate.getFullYear()}.${String(selDate.getMonth()+1).padStart(2,"0")}.${String(selDate.getDate()).padStart(2,"0")} (${WDay})`;
 
   const StatCard=({label,value,sub,gradient,icon})=>(
     <div className="stat-card" style={{background:gradient,position:"relative",overflow:"hidden"}}>
@@ -1747,48 +1772,160 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
 
   return(
     <div style={{animation:"fadeUp 0.3s ease"}}>
-      {/* 날짜 헤더 */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:13,color:"#94a3b8",fontWeight:500}}>{now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일 ({["일","월","화","수","목","금","토"][now.getDay()]})</div>
-        <div style={{fontSize:22,fontWeight:800,color:"#1e293b",marginTop:2}}>👋 오늘도 좋은 하루!</div>
+
+      {/* ── 날짜 네비게이터 ── */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:14,position:"relative"}}>
+        <button onClick={()=>setSelDay(d=>addDays(d,-1))}
+          style={{width:34,height:34,borderRadius:"50%",border:"1.5px solid #e2e8f0",background:"#fff",
+            color:"#1e293b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+            fontWeight:700,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",flexShrink:0}}>‹</button>
+
+        <button onClick={()=>setShowMini(v=>!v)}
+          style={{background:"none",border:"none",cursor:"pointer",textAlign:"center",padding:"4px 6px",borderRadius:8,
+            transition:"background 0.1s"}}
+          onMouseEnter={e=>e.currentTarget.style.background="#f1f5f9"}
+          onMouseLeave={e=>e.currentTarget.style.background="none"}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:1.5,color:"#1e293b",lineHeight:1}}>
+            {dateLabel}
+          </div>
+          {isToday&&(
+            <div style={{fontSize:10,color:"#6366f1",fontWeight:700,marginTop:2,letterSpacing:0.5}}>● TODAY</div>
+          )}
+        </button>
+
+        <button onClick={()=>setSelDay(d=>addDays(d,1))}
+          style={{width:34,height:34,borderRadius:"50%",border:"1.5px solid #e2e8f0",background:"#fff",
+            color:"#1e293b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+            fontWeight:700,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",flexShrink:0}}>›</button>
+
+        {!isToday&&(
+          <button onClick={()=>setSelDay(today)}
+            style={{position:"absolute",right:0,fontSize:10,fontWeight:700,color:"#6366f1",
+              background:"#ede9fe",border:"none",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>
+            오늘
+          </button>
+        )}
       </div>
 
-      {/* 스탯 카드 */}
-      <div className="stat-grid">
-        <StatCard label="오늘 입고" value={`${todayRecs.length}대`} sub={`이번달 ${monthRecs.length}대`}
+      {/* ── 미니 캘린더 ── */}
+      {showMini&&(
+        <div style={{background:"#fff",borderRadius:14,border:"1px solid #e2e8f0",
+          boxShadow:"0 4px 16px rgba(0,0,0,0.08)",marginBottom:14,overflow:"hidden",
+          animation:"fadeUp 0.18s ease"}}>
+          {/* 캘린더 헤더 */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+            padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#1e293b"}}>
+            <button onClick={()=>{if(miniM===0){setMiniY(y=>y-1);setMiniM(11);}else setMiniM(m=>m-1);}}
+              style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",fontSize:16,cursor:"pointer",
+                padding:"2px 6px",borderRadius:5,fontWeight:700}}>‹</button>
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:"#fff",letterSpacing:1.5}}>
+              {miniY}.{String(miniM+1).padStart(2,"0")}
+            </span>
+            <button onClick={()=>{if(miniM===11){setMiniY(y=>y+1);setMiniM(0);}else setMiniM(m=>m+1);}}
+              style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",fontSize:16,cursor:"pointer",
+                padding:"2px 6px",borderRadius:5,fontWeight:700}}>›</button>
+          </div>
+          {/* 요일 헤더 */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",padding:"6px 8px 0"}}>
+            {["일","월","화","수","목","금","토"].map((d,i)=>(
+              <div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,
+                color:i===0?"#ef4444":i===6?"#3b82f6":"#94a3b8",padding:"3px 0"}}>{d}</div>
+            ))}
+          </div>
+          {/* 날짜 그리드 */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",padding:"0 8px 10px",gap:2}}>
+            {miniDays.map((d,i)=>{
+              if(!d) return <div key={`e${i}`}/>;
+              const ds=`${miniY}-${String(miniM+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+              const isSel=ds===selDt;
+              const isTod=ds===today;
+              const cnt=dayCountMap[ds]||0;
+              const dow=new Date(ds).getDay();
+              return(
+                <button key={ds} onClick={()=>{setSelDay(ds);setShowMini(false);}}
+                  style={{
+                    position:"relative",display:"flex",flexDirection:"column",alignItems:"center",
+                    justifyContent:"center",aspectRatio:"1",borderRadius:8,border:"none",cursor:"pointer",
+                    fontSize:11,fontWeight:isSel?800:isTod?700:500,
+                    background:isSel?"#1e293b":isTod?"#ede9fe":"transparent",
+                    color:isSel?"#fff":isTod?"#6366f1":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155",
+                    transition:"background 0.12s",padding:"2px 0",
+                  }}
+                  onMouseEnter={e=>{if(!isSel)e.currentTarget.style.background="#f1f5f9";}}
+                  onMouseLeave={e=>{if(!isSel)e.currentTarget.style.background=isTod?"#ede9fe":"transparent";}}>
+                  {d}
+                  {cnt>0&&(
+                    <div style={{
+                      width:cnt>=3?18:cnt===2?12:6,height:4,borderRadius:3,marginTop:1,
+                      background:isSel?"rgba(255,255,255,0.6)":cnt>=3?"#f59e0b":cnt===2?"#6366f1":"#22c55e",
+                    }}/>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {/* 범례 */}
+          <div style={{display:"flex",gap:10,padding:"0 14px 10px",justifyContent:"flex-end"}}>
+            {[["#22c55e","1건"],["#6366f1","2건"],["#f59e0b","3건+"]].map(([c,l])=>(
+              <div key={l} style={{display:"flex",alignItems:"center",gap:3}}>
+                <div style={{width:10,height:4,borderRadius:2,background:c}}/>
+                <span style={{fontSize:9,color:"#94a3b8"}}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 스탯 카드 ── */}
+      <div className="stat-grid" style={{marginBottom:14}}>
+        <StatCard label={isToday?"오늘 입고":"당일 입고"} value={`${dayRecs.length}대`}
+          sub={`${selYM.replace("-",".")} 월 ${monthRecs.length}대`}
           gradient="linear-gradient(135deg,#667eea,#764ba2)" icon="🚗"/>
-        <StatCard label="오늘 매출" value={formatKRW(todayAmt)} sub={`이번달 ${formatKRW(monthAmt)}`}
+        <StatCard label={isToday?"오늘 매출":"당일 매출"} value={formatKRW(dayAmt)}
+          sub={`월 ${formatKRW(monthAmt)}`}
           gradient="linear-gradient(135deg,#f093fb,#f5576c)" icon="💰"/>
-        <StatCard label="현금" value={formatKRW(todayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0))}
-          sub="오늘 현금 수입" gradient="linear-gradient(135deg,#4facfe,#00f2fe)" icon="💵"/>
-        <StatCard label="카드" value={formatKRW(todayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0))}
-          sub="오늘 카드 수입" gradient="linear-gradient(135deg,#43e97b,#38f9d7)" icon="💳"/>
+        <StatCard label="현금"
+          value={formatKRW(dayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0))}
+          sub="당일 현금" gradient="linear-gradient(135deg,#4facfe,#00f2fe)" icon="💵"/>
+        <StatCard label="카드"
+          value={formatKRW(dayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0))}
+          sub="당일 카드" gradient="linear-gradient(135deg,#43e97b,#38f9d7)" icon="💳"/>
       </div>
 
-      {/* 2단 분할 - 모바일에서 1단으로 자동 변환 */}
+      {/* ── 예약 현황 + 월 요약 ── */}
       <div className="dash-grid">
-        {/* 오늘 예약 현황 */}
+        {/* 선택일 예약 */}
         <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>📅 오늘 예약 현황</div>
-            <button onClick={()=>onAddBooking(today)}
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>
+              📅 {isToday?"오늘":"당일"} 예약
+              {daySorted.length>0&&<span style={{fontSize:11,color:"#94a3b8",marginLeft:6,fontWeight:500}}>{daySorted.length}건</span>}
+            </div>
+            <button onClick={()=>onAddBooking(selDt)}
               style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>
               + 추가
             </button>
           </div>
-          {todaySorted.length===0?(
+          {daySorted.length===0?(
             <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1"}}>
               <div style={{fontSize:24,marginBottom:8}}>📋</div>
-              <div style={{fontSize:13}}>오늘 예약이 없습니다</div>
+              <div style={{fontSize:13}}>예약이 없습니다</div>
+              <button onClick={()=>onAddBooking(selDt)}
+                style={{marginTop:10,fontSize:11,color:"#6366f1",background:"#ede9fe",border:"none",
+                  borderRadius:7,padding:"5px 14px",cursor:"pointer",fontWeight:700}}>
+                등록하기
+              </button>
             </div>
           ):(
-            todaySorted.map(rec=>{
+            daySorted.map(rec=>{
               const cust=getCustomer(rec.customerId);
               const ac=amtColor(rec.amount,cust?.bookingType);
               const ss=SC_STYLE[rec.slot]||SC_STYLE["추가"];
               return(
-                <div key={rec.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"9px 10px",
-                  borderRadius:10,marginBottom:6,background:ac.bg,border:`1px solid ${ac.border}`}}>
+                <div key={rec.id}
+                  onClick={()=>setBookingModal({date:rec.date,slot:rec.slot,record:rec})}
+                  style={{display:"flex",alignItems:"flex-start",gap:8,padding:"9px 10px",
+                    borderRadius:10,marginBottom:6,background:ac.bg,border:`1px solid ${ac.border}`,cursor:"pointer"}}>
                   <span style={{fontSize:9,fontWeight:700,background:ss.bg,color:ss.text,
                     padding:"2px 5px",borderRadius:5,border:`1px solid ${ss.border}`,
                     flexShrink:0,minWidth:38,textAlign:"center",marginTop:1}}>
@@ -1813,42 +1950,85 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
           )}
         </div>
 
-        {/* 최근 작업 내역 */}
+        {/* 월간 요약 */}
         <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>🔧 최근 작업 내역</div>
-            <button onClick={()=>setTab("customers")}
-              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
-              전체보기
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>
+              📊 {selYM.replace("-",".")} 월간 요약
+            </div>
+            <button onClick={()=>setTab("analytics")}
+              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,
+                padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
+              분석보기
             </button>
           </div>
-          {recent.length===0?(
-            <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1",fontSize:13}}>작업 내역 없음</div>
-          ):(
-            recent.map(rec=>{
-              const cust=getCustomer(rec.customerId);
-              const ac=amtColor(rec.amount,cust?.bookingType);
-              return(
-                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",
-                  borderBottom:"1px solid #f1f5f9"}}>
-                  <div style={{width:7,height:7,borderRadius:"50%",background:ac.border,flexShrink:0}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{fontWeight:600,fontSize:12,color:"#1e293b",
-                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100px"}}>
-                        {cust?.name||cust?.phone||"미등록"}
-                      </span>
-                      <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{rec.date.slice(5).replace("-",".")}</span>
+
+          {/* 월 매출 게이지 */}
+          {(()=>{
+            const now2=new Date();
+            const isCurMo=(selYM===`${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,"0")}`);
+            const dim=new Date(new Date(selYM+"-01").getFullYear(),new Date(selYM+"-01").getMonth()+1,0).getDate();
+            const pct=isCurMo?Math.round((now2.getDate()/dim)*100):100;
+            const cashAmt=monthRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0);
+            const cardAmt=monthRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0);
+            const byType={};
+            monthRecs.forEach(r=>{
+              const c=getCustomer(r.customerId);
+              const bt=c?.bookingType||"기타";
+              byType[bt]=(byType[bt]||0)+1;
+            });
+            return(
+              <>
+                <div style={{background:"linear-gradient(135deg,#1e293b,#334155)",borderRadius:12,
+                  padding:"14px 16px",marginBottom:12}}>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:6,fontWeight:600}}>
+                    MONTHLY REVENUE
+                  </div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",
+                    letterSpacing:1,marginBottom:10}}>{formatKRW(monthAmt)}</div>
+                  <div style={{height:5,background:"rgba(255,255,255,0.15)",borderRadius:3,marginBottom:5}}>
+                    <div style={{height:5,background:"linear-gradient(90deg,#6366f1,#a78bfa)",
+                      borderRadius:3,width:`${pct}%`,transition:"width 0.5s"}}/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}>
+                    <span style={{color:"rgba(255,255,255,0.5)"}}>입고 {monthRecs.length}대</span>
+                    <span style={{color:"rgba(255,255,255,0.5)"}}>{pct}% {isCurMo?"경과":"완료"}</span>
+                  </div>
+                </div>
+
+                {/* 현금/카드 */}
+                <div style={{display:"flex",gap:8,marginBottom:12}}>
+                  {[[cashAmt,"현금","#0ea5e9","#e0f2fe"],[cardAmt,"카드","#8b5cf6","#ede9fe"]].map(([amt,lbl,c,bg])=>(
+                    <div key={lbl} style={{flex:1,background:bg,borderRadius:10,padding:"10px 12px",border:`1px solid ${c}22`}}>
+                      <div style={{fontSize:10,color:c,fontWeight:700,marginBottom:3}}>{lbl}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>{formatKRW(amt)}</div>
+                      <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>
+                        {monthAmt>0?Math.round(amt/monthAmt*100):0}%
+                      </div>
                     </div>
-                    <div style={{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {(rec.services||[]).join(", ")}
+                  ))}
+                </div>
+
+                {/* 예약구분 */}
+                {Object.keys(byType).length>0&&(
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",marginBottom:7,letterSpacing:0.5}}>예약구분</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([bt,cnt])=>{
+                        const btc=BT[bt]||BT["신규"];
+                        return(
+                          <span key={bt} style={{fontSize:10,fontWeight:700,background:btc.bg,color:btc.color,
+                            padding:"2px 8px",borderRadius:6,border:`1px solid ${btc.border}`}}>
+                            {bt} {cnt}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
-                  <div style={{fontSize:11,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
-                </div>
-              );
-            })
-          )}
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
