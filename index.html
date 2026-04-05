@@ -303,43 +303,49 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 }
 
 // ── 달력 ──────────────────────────────────────────────
-function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate}){
-  // 셀 고정 너비로 요일/날짜 칸 크기 완전 통일
+function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
   const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "80px";
-  const CELL_H = isWeek ? 120 : 100;
   const GRID_W = isWeek ? "100%" : `calc(80px * 7 + 6px)`;
 
   return(
     <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{width:GRID_W,minWidth:GRID_W}}>
-        {/* 요일 헤더 - 셀과 정확히 같은 너비 */}
+        {/* 요일 헤더 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,background:"#e2e8f0",borderRadius:"10px 10px 0 0",overflow:"hidden"}}>
           {["SUN","MON","TUE","WED","THU","FRI","SAT"].map((d,i)=>(
             <div key={d} style={{background:"#f8fafc",textAlign:"center",padding:"8px 0",
               fontSize:9,fontWeight:700,letterSpacing:1,
               color:i===0?"#ef4444":i===6?"#3b82f6":"#64748b",
-              fontFamily:"'Bebas Neue',sans-serif",
-              width:CELL_W,boxSizing:"border-box"}}>{d}</div>
+              fontFamily:"'Bebas Neue',sans-serif",width:CELL_W,boxSizing:"border-box"}}>{d}</div>
           ))}
         </div>
-        {/* 날짜 셀 */}
+        {/* 날짜 셀 - 높이 자동 확장, overflow 제거 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
           {days.map((d,i)=>{
-            if(!d)return <div key={`e${i}`} style={{background:"#f8fafc",height:CELL_H,width:CELL_W}}/>;
+            if(!d)return <div key={`e${i}`} style={{background:"#f8fafc",minHeight:isWeek?110:90,width:CELL_W}}/>;
             const ds=isWeek?d:`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
             const isToday=ds===todayStr(),isSel=ds===selectedDate;
             const dayData=calendarMap[ds]||[];
-            const allDayItem=dayData.find(r=>r.slot==="종일");
+            // 종일 항목들 (여러 개 가능 - 각각 표시)
+            const allDayItems=dayData.filter(r=>r.slot==="종일");
+            // 시간/추가 항목들
             const timeItems=dayData.filter(r=>r.slot!=="종일");
             const dow=new Date(ds).getDay();
             const displayDay=isWeek?Number(ds.slice(8)):d;
             return(
-              <div key={i} onClick={()=>onSelectDate(ds)}
-                style={{background:isSel?"#1e293b":isToday?"#fffbeb":"#fff",
-                  height:CELL_H,width:CELL_W,
+              <div key={i}
+                onClick={()=>onDatePopup(ds)}
+                style={{
+                  background:isSel?"#1e293b":isToday?"#fffbeb":"#fff",
+                  minHeight:isWeek?110:90, /* 최소 높이만, 내용에 따라 자동 확장 */
+                  width:CELL_W,
                   padding:"5px 4px",cursor:"pointer",
                   borderTop:isSel?"2px solid #1e293b":isToday?"2px solid #f59e0b":"2px solid transparent",
-                  transition:"background 0.1s",overflow:"hidden",boxSizing:"border-box"}}>
+                  transition:"background 0.1s",
+                  boxSizing:"border-box",
+                  overflow:"visible", /* 내용 잘리지 않게 */
+                }}>
+                {/* 날짜 + + 버튼 */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
                   <span style={{fontSize:isWeek?16:12,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
                     color:isSel?"#fff":isToday?"#d97706":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155"}}>
@@ -349,34 +355,40 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                   <button onClick={e=>{e.stopPropagation();onAddBooking(ds);}}
                     style={{width:14,height:14,borderRadius:"50%",border:"1px solid #cbd5e1",
                       background:isSel?"rgba(255,255,255,0.2)":"#f1f5f9",color:isSel?"#fff":"#475569",
-                      fontSize:10,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,flexShrink:0}}>+</button>
+                      fontSize:10,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",
+                      justifyContent:"center",padding:0,flexShrink:0}}>+</button>
                 </div>
 
-                {/* 종일/다일 - 연속 바 */}
-                {allDayItem&&(()=>{
-                  const isFirst=allDayItem._isFirst,isLast=allDayItem._isLast,isSingle=allDayItem._spanTotal===1;
+                {/* 종일/다일 항목들 - 각각 따로 표시 */}
+                {allDayItems.map((item,ai)=>{
+                  const isFirst=item._isFirst,isLast=item._isLast,isSingle=item._spanTotal===1;
                   return(
-                    <div style={{fontSize:9,fontWeight:700,padding:"2px 4px",marginBottom:2,
-                      marginLeft:(!isFirst&&!isSingle)?"-5px":"0",marginRight:(!isLast&&!isSingle)?"-5px":"0",
+                    <div key={`ad-${ai}`} style={{
+                      fontSize:9,fontWeight:700,padding:"2px 4px",marginBottom:2,
+                      marginLeft:(!isFirst&&!isSingle)?"-5px":"0",
+                      marginRight:(!isLast&&!isSingle)?"-5px":"0",
                       background:"#ede9fe",color:"#6d28d9",
                       borderTop:"1px solid #c4b5fd",borderBottom:"1px solid #c4b5fd",
                       borderLeft:isFirst||isSingle?"2px solid #8b5cf6":"none",
                       borderRight:isLast||isSingle?"1px solid #c4b5fd":"none",
                       borderRadius:isSingle?"4px":isFirst?"4px 0 0 4px":isLast?"0 4px 4px 0":"0",
-                      whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                      {isFirst?allDayItem._custName||"종일":"\u00A0"}
+                      whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                    }}>
+                      {isFirst ? item._custName||"종일" : "\u00A0"}
                     </div>
                   );
-                })()}
+                })}
 
-                {/* 시간 예약 - 금액대별 + 지메닉 색상 */}
-                {timeItems.slice(0,isWeek?6:99).map((r,ri)=>{
+                {/* 시간/추가 예약 - 전부 표시 */}
+                {timeItems.map((r,ri)=>{
                   const ac=amtColor(r.amount,r._bookingType);
                   return(
-                    <div key={ri} style={{fontSize:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
+                    <div key={ri} style={{
+                      fontSize:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
                       background:ac.bg,borderLeft:`2px solid ${ac.border}`,
                       whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-                      color:ac.text,fontWeight:600}}>
+                      color:ac.text,fontWeight:600,
+                    }}>
                       <span style={{fontWeight:800,fontSize:8,marginRight:2,opacity:0.6}}>{r.slot}</span>
                       {r._custName||"예약"}
                     </div>
@@ -391,7 +403,141 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
   );
 }
 
-// ── 고객 검색 컴포넌트 ────────────────────────────────
+// ── 날짜 팝업 ─────────────────────────────────────────
+function DayPopup({date,records,customers,onClose,onEdit,onDelete,onAdd,getCustomer}){
+  const dayRecs=useMemo(()=>{
+    const r=records.filter(r=>r.date===date);
+    // 슬롯 순서: 종일 → 10:00 → 13:00 → 16:00 → 추가
+    const slotOrder={"종일":0,"10:00":1,"13:00":2,"16:00":3,"추가":4};
+    return [...r].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
+  },[records,date]);
+
+  useEffect(()=>{
+    const h=e=>{if(e.key==="Escape")onClose();};
+    document.addEventListener("keydown",h);
+    return()=>document.removeEventListener("keydown",h);
+  },[onClose]);
+
+  const slotLabel=(slot)=>{
+    const s=SC_STYLE[slot]||SC_STYLE["추가"];
+    return(
+      <span style={{fontSize:10,fontWeight:700,background:s.bg,color:s.text,
+        padding:"2px 8px",borderRadius:5,border:`1px solid ${s.border}`,flexShrink:0}}>
+        {slot==="종일"?"◆ 종일":slot}
+      </span>
+    );
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",zIndex:200,
+      display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+      onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:560,
+        maxHeight:"85vh",display:"flex",flexDirection:"column",
+        boxShadow:"0 -8px 32px rgba(0,0,0,0.15)"}}
+        onClick={e=>e.stopPropagation()}>
+        {/* 헤더 */}
+        <div style={{padding:"16px 18px 12px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
+          <div style={{width:40,height:3,background:"#1e293b",borderRadius:2,margin:"0 auto 14px"}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <span style={{fontSize:16,fontWeight:800,color:"#1e293b",fontFamily:"'Bebas Neue',sans-serif",letterSpacing:1}}>
+                {date.replace(/-/g,".")}
+              </span>
+              <span style={{fontSize:13,color:"#94a3b8",marginLeft:6}}>{WD(date)}요일</span>
+              <span style={{fontSize:12,color:"#475569",marginLeft:8,fontWeight:600}}>{dayRecs.length}건</span>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{onClose();onAdd(date);}}
+                style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:8,
+                  padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>
+                + 추가
+              </button>
+              <button onClick={onClose}
+                style={{background:"none",border:"1px solid #e2e8f0",color:"#94a3b8",
+                  borderRadius:8,padding:"6px 10px",fontSize:14,cursor:"pointer"}}>✕</button>
+            </div>
+          </div>
+        </div>
+
+        {/* 예약 목록 */}
+        <div style={{overflowY:"auto",padding:"12px 18px",flex:1}}>
+          {dayRecs.length===0?(
+            <div style={{textAlign:"center",padding:"40px 0",color:"#cbd5e1",fontSize:13}}>
+              예약이 없습니다
+              <div style={{marginTop:12}}>
+                <button onClick={()=>{onClose();onAdd(date);}}
+                  style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:8,
+                    padding:"8px 20px",fontSize:13,cursor:"pointer",fontWeight:700}}>
+                  + 예약 등록
+                </button>
+              </div>
+            </div>
+          ):(
+            dayRecs.map((rec,i)=>{
+              const cust=getCustomer(rec.customerId);
+              const btc=cust?BT[cust.bookingType]:null;
+              const ac=amtColor(rec.amount,cust?.bookingType);
+              const isCont=rec.slot==="종일"&&rec.date!==date;
+              return(
+                <div key={rec.id} style={{
+                  borderRadius:12,padding:"12px 14px",marginBottom:10,
+                  background:ac.bg,border:`1.5px solid ${ac.border}`,
+                  opacity:isCont?0.6:1,
+                }}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                      {slotLabel(rec.slot)}
+                      {rec.multiDay>1&&<span style={{fontSize:10,fontWeight:700,background:"#fef2f2",color:"#dc2626",padding:"2px 6px",borderRadius:5,border:"1px solid #fecaca"}}>{rec.multiDay}일</span>}
+                      {isCont&&<span style={{fontSize:9,color:"#94a3b8"}}>({rec.date}~연속)</span>}
+                    </div>
+                    {!isCont&&(
+                      <div style={{display:"flex",gap:6}}>
+                        <button onClick={()=>{onClose();onEdit(rec);}}
+                          style={{fontSize:11,fontWeight:700,color:"#475569",background:"#fff",
+                            border:"1px solid #e2e8f0",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>수정</button>
+                        <button onClick={()=>{if(window.confirm("삭제할까요?"))onDelete(rec.id);}}
+                          style={{fontSize:11,fontWeight:700,color:"#ef4444",background:"#fff",
+                            border:"1px solid #fecaca",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>삭제</button>
+                      </div>
+                    )}
+                  </div>
+                  {cust&&(
+                    <div style={{marginBottom:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>{cust.name||cust.phone}</span>
+                        {cust.name&&<span style={{fontSize:10,color:"#94a3b8"}}>{cust.phone}</span>}
+                        {btc&&<span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 5px",borderRadius:4,border:`1px solid ${btc.border}`}}>{cust.bookingType}</span>}
+                      </div>
+                    </div>
+                  )}
+                  {(rec.carModel||(cust?.cars||[])[0])&&(
+                    <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>
+                      🚗 {rec.carModel||(cust?.cars||[])[0]}
+                    </div>
+                  )}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:4}}>
+                    {(rec.services||[]).map(s=>(
+                      <span key={s} style={{fontSize:10,background:"rgba(255,255,255,0.8)",color:"#475569",
+                        padding:"2px 7px",borderRadius:5,border:"1px solid rgba(0,0,0,0.08)"}}>{s}</span>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:12,color:"#64748b"}}>{rec.payment}</span>
+                    <span style={{fontSize:14,fontWeight:800,color:ac.text}}>{formatKRW(rec.amount)}</span>
+                  </div>
+                  {rec.memo&&<div style={{fontSize:11,color:"#64748b",marginTop:6,padding:"4px 8px",background:"rgba(255,255,255,0.7)",borderRadius:5}}>📝 {rec.memo}</div>}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function CustomerSearch({customers,records,onEdit}){
   const [query,setQuery]=useState("");
   const [selected,setSelected]=useState(null);
@@ -1053,6 +1199,7 @@ function App(){
   const [showSales,setShowSales]=useState(false);
   const [bookingModal,setBookingModal]=useState(null);
   const [custModal,setCustModal]=useState(null);
+  const [dayPopup,setDayPopup]=useState(null); // 날짜 팝업
   const closeSales=useCallback(()=>setShowSales(false),[]);
 
   function goPrev(){
@@ -1192,8 +1339,10 @@ function App(){
               <div>
                 <div style={{borderRadius:12,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",marginBottom:14,border:"1px solid #e2e8f0"}}>
                   <BigCalendar days={calDays} calYear={calY} calMonth={calM} calendarMap={calendarMap}
-                    isWeek={view==="week"} onSelectDate={setSelDate}
+                    isWeek={view==="week"}
+                    onSelectDate={setSelDate}
                     onAddBooking={date=>setBookingModal({date,slot:"10:00",record:null})}
+                    onDatePopup={date=>{setSelDate(date);setDayPopup(date);}}
                     selectedDate={selDate}/>
                 </div>
               </div>
@@ -1384,6 +1533,18 @@ function App(){
         })()}
       </main>
 
+      {dayPopup&&(
+        <DayPopup
+          date={dayPopup}
+          records={records}
+          customers={customers}
+          getCustomer={getCustomer}
+          onClose={()=>setDayPopup(null)}
+          onEdit={rec=>{setDayPopup(null);setBookingModal({date:rec.date,slot:rec.slot,record:rec});}}
+          onDelete={async id=>{await deleteRecord(id);}}
+          onAdd={date=>{setBookingModal({date,slot:"10:00",record:null});}}
+        />
+      )}
       {bookingModal&&(
         <BookingModal modal={bookingModal} customers={customers}
           onSave={async d=>{await saveRecord(d);setBookingModal(null);}}
