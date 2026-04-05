@@ -44,6 +44,85 @@
     @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.5} }
     @keyframes slideLeft  { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
     @keyframes slideRight { from{opacity:0;transform:translateX(-40px)} to{opacity:1;transform:translateX(0)} }
+
+    /* ── 사이드바 레이아웃 ── */
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+      background: #f1f5f9;
+    }
+    /* 사이드바 */
+    .sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: #1e293b;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+    }
+    .sidebar-logo {
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-nav { padding: 12px 8px; flex: 1; }
+    .nav-section-label {
+      font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.3);
+      letter-spacing: 1.5px; padding: 8px 10px 4px; text-transform: uppercase;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; cursor: pointer;
+      color: rgba(255,255,255,0.55); font-size: 13px; font-weight: 600;
+      transition: all 0.15s; margin-bottom: 2px; border: none; background: none;
+      width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+    .nav-item.active { background: rgba(255,255,255,0.12); color: #fff; }
+    .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+    /* 메인 콘텐츠 */
+    .main-wrap {
+      margin-left: 220px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .page-content { padding: 20px 24px; max-width: 1400px; }
+    /* 대시보드 카드 */
+    .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
+    .stat-card {
+      border-radius: 14px; padding: 20px; color: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    /* 모바일 - 사이드바 숨김 */
+    @media(max-width:767px){
+      .sidebar { transform: translateX(-100%); transition: transform 0.25s; }
+      .sidebar.open { transform: translateX(0); }
+      .main-wrap { margin-left: 0; }
+      .stat-grid { grid-template-columns: repeat(2,1fr); }
+      .page-content { padding: 14px 16px; }
+      .sidebar-overlay { display: block !important; }
+    }
+    .mobile-menu-btn { display: none !important; }
+    @media(max-width:767px){ .mobile-menu-btn { display: flex !important; } }
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 99;
+    }
     .cal-swipe { touch-action: pan-y; user-select: none; }
     .tbl-wrap  { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .tbl-wrap table { border-collapse:collapse; min-width:600px; width:100%; }
@@ -55,11 +134,9 @@
     .tbl-wrap td.mo  { font-weight:600; color:#475569; background:#f8fafc; }
     @media(min-width:768px){
       .pc-split{display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start;}
-      .pc-sticky{position:sticky;top:70px;}
+      .pc-sticky{position:sticky;top:76px;}
     }
-    @media(max-width:767px){
-      .pc-split{display:block;}
-    }
+    @media(max-width:767px){ .pc-split{display:block;} }
   </style>
 </head>
 <body>
@@ -1386,10 +1463,149 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
 }
 
 // ── 메인 앱 ──────────────────────────────────────────
+// ── 대시보드 컴포넌트 ─────────────────────────────────
+function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBookingModal,setCustModal}){
+  const today=todayStr();
+  const now=new Date();
+  const tm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+
+  const todayRecs=useMemo(()=>records.filter(r=>r.date===today),[records,today]);
+  const monthRecs=useMemo(()=>records.filter(r=>r.date.startsWith(tm)),[records,tm]);
+  const todayAmt=todayRecs.reduce((s,r)=>s+Number(r.amount),0);
+  const monthAmt=monthRecs.reduce((s,r)=>s+Number(r.amount),0);
+
+  // 최근 7일 예약
+  const weekDates=getWeekDates(today);
+  const recent=useMemo(()=>
+    [...records].filter(r=>r.date>=weekDates[0]&&r.date<=weekDates[6])
+      .sort((a,b)=>b.date.localeCompare(a.date)||0).slice(0,10)
+  ,[records,today]);
+
+  // 오늘 슬롯별 예약
+  const slots=["10:00","13:00","16:00"];
+  const slotOrder={"종일":0,"10:00":1,"13:00":2,"16:00":3,"추가":4};
+  const todaySorted=[...todayRecs].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
+
+  const StatCard=({label,value,sub,gradient,icon})=>(
+    <div className="stat-card" style={{background:gradient}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:600,opacity:0.75,marginBottom:8}}>{label}</div>
+          <div style={{fontSize:26,fontWeight:900,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:0.5,lineHeight:1}}>{value}</div>
+          {sub&&<div style={{fontSize:11,opacity:0.7,marginTop:5}}>{sub}</div>}
+        </div>
+        <div style={{fontSize:28,opacity:0.8}}>{icon}</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{animation:"fadeUp 0.3s ease"}}>
+      {/* 날짜 헤더 */}
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:13,color:"#94a3b8",fontWeight:500}}>{now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일 ({["일","월","화","수","목","금","토"][now.getDay()]})</div>
+        <div style={{fontSize:22,fontWeight:800,color:"#1e293b",marginTop:2}}>👋 오늘도 좋은 하루!</div>
+      </div>
+
+      {/* 스탯 카드 */}
+      <div className="stat-grid">
+        <StatCard label="오늘 입고" value={`${todayRecs.length}대`} sub={`이번달 ${monthRecs.length}대`}
+          gradient="linear-gradient(135deg,#667eea,#764ba2)" icon="🚗"/>
+        <StatCard label="오늘 매출" value={formatKRW(todayAmt)} sub={`이번달 ${formatKRW(monthAmt)}`}
+          gradient="linear-gradient(135deg,#f093fb,#f5576c)" icon="💰"/>
+        <StatCard label="현금" value={formatKRW(todayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0))}
+          sub="오늘 현금 수입" gradient="linear-gradient(135deg,#4facfe,#00f2fe)" icon="💵"/>
+        <StatCard label="카드" value={formatKRW(todayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0))}
+          sub="오늘 카드 수입" gradient="linear-gradient(135deg,#43e97b,#38f9d7)" icon="💳"/>
+      </div>
+
+      {/* 2단 분할 */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        {/* 오늘 예약 현황 */}
+        <div style={{background:"#fff",borderRadius:14,padding:"18px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>📅 오늘 예약 현황</div>
+            <button onClick={()=>onAddBooking(today)}
+              style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>
+              + 추가
+            </button>
+          </div>
+          {todaySorted.length===0?(
+            <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1"}}>
+              <div style={{fontSize:24,marginBottom:8}}>📋</div>
+              <div style={{fontSize:13}}>오늘 예약이 없습니다</div>
+            </div>
+          ):(
+            todaySorted.map(rec=>{
+              const cust=getCustomer(rec.customerId);
+              const ac=amtColor(rec.amount,cust?.bookingType);
+              const ss=SC_STYLE[rec.slot]||SC_STYLE["추가"];
+              return(
+                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",
+                  borderRadius:10,marginBottom:7,background:ac.bg,border:`1px solid ${ac.border}`}}>
+                  <span style={{fontSize:9,fontWeight:700,background:ss.bg,color:ss.text,
+                    padding:"2px 6px",borderRadius:5,border:`1px solid ${ss.border}`,flexShrink:0,minWidth:40,textAlign:"center"}}>
+                    {rec.slot==="종일"?"종일":rec.slot}
+                  </span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:13,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {cust?.name||cust?.phone||"미등록"}
+                    </div>
+                    <div style={{fontSize:11,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {(rec.services||[]).join(", ")}
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* 최근 작업 내역 */}
+        <div style={{background:"#fff",borderRadius:14,padding:"18px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>🔧 최근 작업 내역</div>
+            <button onClick={()=>setTab("customers")}
+              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:600}}>
+              전체보기
+            </button>
+          </div>
+          {recent.length===0?(
+            <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1",fontSize:13}}>작업 내역 없음</div>
+          ):(
+            recent.map(rec=>{
+              const cust=getCustomer(rec.customerId);
+              const ac=amtColor(rec.amount,cust?.bookingType);
+              return(
+                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",
+                  borderBottom:"1px solid #f8fafc"}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:ac.border,flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <span style={{fontWeight:600,fontSize:12,color:"#1e293b"}}>{cust?.name||cust?.phone||"미등록"}</span>
+                      <span style={{fontSize:10,color:"#94a3b8"}}>{rec.date.slice(5).replace("-",".")}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {(rec.services||[]).join(", ")}
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const db=window.__db;
   const {customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord}=useData(db);
-  const [tab,setTab]=useState("calendar");
+  const [tab,setTab]=useState("dashboard");
+  const [sideOpen,setSideOpen]=useState(false); // 모바일 사이드바
   const [selDate,setSelDate]=useState(todayStr());
   const [calY,setCalY]=useState(new Date().getFullYear());
   const [calM,setCalM]=useState(new Date().getMonth());
@@ -1397,7 +1613,7 @@ function App(){
   const [showSales,setShowSales]=useState(false);
   const [bookingModal,setBookingModal]=useState(null);
   const [custModal,setCustModal]=useState(null);
-  const [dayPopup,setDayPopup]=useState(null); // 날짜 팝업
+  const [dayPopup,setDayPopup]=useState(null);
   const closeSales=useCallback(()=>setShowSales(false),[]);
 
   function goPrev(){
@@ -1451,191 +1667,184 @@ function App(){
   const isCont=allDayRec&&allDayRec.date!==selDate;
 
   if(loading)return(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:14,background:"#f8fafc"}}>
-      <img src={`data:image/jpeg;base64,${window.__logoOrig||""}`} style={{width:80,height:80,objectFit:"contain"}} onError={e=>e.target.style.display="none"}/>
-      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,letterSpacing:3,color:"#1e293b"}}>G-MENIC CRM</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:14,background:"#f1f5f9"}}>
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,letterSpacing:3,color:"#1e293b"}}>G-MENIC CRM</div>
       <div style={{width:60,height:2,background:"#1e293b",borderRadius:1,animation:"pulse 1.5s infinite"}}/>
       <div style={{fontSize:12,color:"#94a3b8",letterSpacing:1}}>{db?"CONNECTING...":"LOADING..."}</div>
     </div>
   );
 
+  const MENU=[
+    {id:"dashboard",icon:"📊",label:"대시보드"},
+    {id:"calendar",icon:"📅",label:"캘린더"},
+    {id:"customers",icon:"👥",label:"고객"},
+    {id:"analytics",icon:"📈",label:"분석"},
+  ];
+
   return(
-    <div style={{minHeight:"100vh",background:"#f8fafc"}}>
-      {/* 헤더 */}
-      <header style={{background:"#1e293b",padding:"12px 16px",position:"sticky",top:0,zIndex:50,boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:1200,margin:"0 auto"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <button onClick={()=>setShowSales(v=>!v)}
-              style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:15,transition:"background 0.2s",
-                boxShadow:showSales?"0 0 0 2px rgba(255,255,255,0.2)":"none"}}>💰</button>
-            <div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:2,color:"#fff"}}>G-MENIC CAR CARE CRM</div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:1}}>해운대 · {connected?"🟢 Firebase":"💾 로컬"}</div>
-            </div>
-          </div>
-          <div style={{background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",padding:"4px 10px",borderRadius:8,fontSize:11,fontWeight:600}}>
-            {todayStr().slice(5).replace("-",".")} {WD(todayStr())}
+    <div className="app-layout">
+      <div className="sidebar-overlay" onClick={()=>setSideOpen(false)} style={{display:sideOpen?"block":"none"}}/>
+
+      {/* 사이드바 */}
+      <aside className={`sidebar${sideOpen?" open":""}`}>
+        <div className="sidebar-logo">
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,color:"#fff",lineHeight:1}}>G-MENIC</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:3,letterSpacing:1}}>CAR CARE CRM · 해운대</div>
+          <div style={{marginTop:8,display:"flex",alignItems:"center",gap:5}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:connected?"#4ade80":"#f87171",display:"inline-block"}}/>
+            <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{connected?"Firebase 연결됨":"로컬 모드"}</span>
           </div>
         </div>
-      </header>
+        <nav className="sidebar-nav">
+          <div className="nav-section-label">메뉴</div>
+          {MENU.map(m=>(
+            <button key={m.id} className={`nav-item${tab===m.id?" active":""}`}
+              onClick={()=>{setTab(m.id);setSideOpen(false);}}>
+              <span className="nav-icon">{m.icon}</span>{m.label}
+            </button>
+          ))}
+          <div className="nav-section-label" style={{marginTop:16}}>빠른 메뉴</div>
+          <button className="nav-item" onClick={()=>{setBookingModal({date:todayStr(),slot:"10:00",record:null});setSideOpen(false);}}>
+            <span className="nav-icon">➕</span>예약 등록
+          </button>
+          <button className="nav-item" onClick={()=>{setCustModal("new");setSideOpen(false);}}>
+            <span className="nav-icon">👤</span>신규 고객
+          </button>
+          <button className="nav-item" onClick={()=>setShowSales(v=>!v)}>
+            <span className="nav-icon">💰</span>매출 현황
+          </button>
+        </nav>
+        <div style={{padding:"12px 16px",borderTop:"1px solid rgba(255,255,255,0.07)",fontSize:11,color:"rgba(255,255,255,0.35)",textAlign:"center"}}>
+          {todayStr().replace(/-/g,".")} {WD(todayStr())}
+        </div>
+      </aside>
 
-      {showSales&&<SalesPanel records={records} selectedDate={selDate} calYear={calY} calMonth={calM} onClose={closeSales}/>}
+      {/* 메인 영역 */}
+      <div className="main-wrap">
+        {/* 상단 바 */}
+        <div className="topbar">
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <button onClick={()=>setSideOpen(v=>!v)} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:7,fontSize:16,cursor:"pointer",color:"#475569",padding:"4px 8px",display:"none"}} className="mobile-menu-btn">☰</button>
+            <div style={{fontWeight:700,fontSize:15,color:"#1e293b"}}>{MENU.find(m=>m.id===tab)?.icon} {MENU.find(m=>m.id===tab)?.label}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontSize:12,color:"#94a3b8"}}>{todayStr().slice(5).replace("-",".")} {WD(todayStr())}</div>
+          </div>
+        </div>
 
-      {/* 탭 */}
-      <nav style={{display:"flex",background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:52,zIndex:40}}>
-        {[["calendar","📅 캘린더"],["customers","👥 고객"],["analytics","📊 분석"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setTab(k)}
-            style={{flex:1,padding:"12px 0",border:"none",background:"none",fontSize:13,cursor:"pointer",fontWeight:600,
-              color:tab===k?"#1e293b":"#94a3b8",
-              borderBottom:tab===k?"2px solid #1e293b":"2px solid transparent",
-              marginBottom:tab===k?-1:0,transition:"all 0.15s"}}>{l}</button>
-        ))}
-      </nav>
+        {showSales&&<SalesPanel records={records} selectedDate={selDate} calYear={calY} calMonth={calM} onClose={closeSales}/>}
 
-      <main style={{padding:"14px 16px",maxWidth:1200,margin:"0 auto"}}>
+        <div className="page-content">
 
-        {/* ══ 캘린더 ══ */}
-        {tab==="calendar"&&(
-          <div style={{animation:"fadeUp 0.3s ease"}}>
-            {/* 툴바 */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8}}>
-              <div style={{display:"flex",background:"#f1f5f9",borderRadius:8,padding:2,gap:1}}>
-                {[["month","월"],["first","전반"],["second","후반"],["week","주"]].map(([v,l])=>(
-                  <button key={v} onClick={()=>setView(v)}
-                    style={{padding:"5px 10px",border:"none",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
-                      background:view===v?"#fff":"none",color:view===v?"#1e293b":"#94a3b8",
-                      boxShadow:view===v?"0 1px 3px rgba(0,0,0,0.1)":"none",transition:"all 0.15s"}}>{l}</button>
+          {/* 대시보드 */}
+          {tab==="dashboard"&&(
+            <Dashboard records={records} customers={customers} getCustomer={getCustomer}
+              onAddBooking={date=>setBookingModal({date,slot:"10:00",record:null})}
+              setTab={setTab} setBookingModal={setBookingModal} setCustModal={setCustModal}/>
+          )}
+
+          {/* 캘린더 */}
+          {tab==="calendar"&&(
+            <div style={{animation:"fadeUp 0.3s ease"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8}}>
+                <div style={{display:"flex",background:"#fff",borderRadius:8,padding:2,gap:1,border:"1px solid #e2e8f0"}}>
+                  {[["month","월"],["first","전반"],["second","후반"],["week","주"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>setView(v)}
+                      style={{padding:"5px 10px",border:"none",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
+                        background:view===v?"#1e293b":"none",color:view===v?"#fff":"#94a3b8",transition:"all 0.15s"}}>{l}</button>
+                  ))}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <button onClick={goPrev} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,fontSize:16,cursor:"pointer",color:"#1e293b",padding:"4px 10px",fontWeight:700}}>‹</button>
+                  <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:"#1e293b",minWidth:110,textAlign:"center",letterSpacing:1}}>{calTitle}</span>
+                  <button onClick={goNext} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,fontSize:16,cursor:"pointer",color:"#1e293b",padding:"4px 10px",fontWeight:700}}>›</button>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+                {[["~13만","#38bdf8","#e0f2fe"],["16~20만","#eab308","#fefce8"],["20~50만","#fde047","#fefce8"],["50만↑","#fb7185","#fff1f2"],["지메닉","#f97316","#fff7ed"],["지메닉10만↑","#fdba74","#fff7ed"]].map(([l,c,bg])=>(
+                  <span key={l} style={{fontSize:9,background:bg,padding:"2px 7px",borderRadius:4,border:`1px solid ${c}`,fontWeight:700,color:c}}>{l}</span>
                 ))}
+                <span style={{fontSize:9,color:"#94a3b8"}}>종일도 동일</span>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <button onClick={goPrev} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#1e293b",padding:"0 6px",fontWeight:700}}>‹</button>
-                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:"#1e293b",minWidth:100,textAlign:"center",letterSpacing:1}}>{calTitle}</span>
-                <button onClick={goNext} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#1e293b",padding:"0 6px",fontWeight:700}}>›</button>
-              </div>
-            </div>
-            {/* 범례 - 금액대별 (시간예약 + 종일 모두 동일 색상) */}
-            <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
-              {[
-                ["~13만","#38bdf8","#e0f2fe"],
-                ["16~20만","#eab308","#fefce8"],
-                ["20~50만","#fde047","#fefce8"],
-                ["50만↑","#fb7185","#fff1f2"],
-                ["지메닉","#f97316","#fff7ed"],
-                ["지메닉10만↑","#fdba74","#fff7ed"],
-              ].map(([l,c,bg])=>(
-                <span key={l} style={{display:"inline-flex",alignItems:"center",gap:3,
-                  fontSize:9,background:bg,padding:"2px 7px",borderRadius:4,
-                  border:`1px solid ${c}`,fontWeight:700,color:c}}>
-                  {l}
-                </span>
-              ))}
-              <span style={{fontSize:9,color:"#94a3b8",marginLeft:2}}>종일도 동일 적용</span>
-            </div>
-
-            {/* PC 좌우 분할 */}
-            <div className="pc-split">
-              {/* 달력 */}
-              <div>
-                <div style={{borderRadius:12,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",marginBottom:14,border:"1px solid #e2e8f0"}}>
-                  <BigCalendar days={calDays} calYear={calY} calMonth={calM} calendarMap={calendarMap}
-                    isWeek={view==="week"}
-                    onSelectDate={setSelDate}
-                    onAddBooking={date=>setBookingModal({date,slot:"10:00",record:null})}
-                    onDatePopup={date=>{setSelDate(date);setDayPopup(date);}}
-                    selectedDate={selDate}/>
-                </div>
-              </div>
-
-              {/* 슬롯 영역 */}
-              <div className="pc-sticky">
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <div>
-                    <span style={{fontSize:15,fontWeight:700,color:"#1e293b"}}>{selDate.replace(/-/g,".")}</span>
-                    <span style={{fontSize:12,color:"#94a3b8",marginLeft:6}}>{WD(selDate)}요일</span>
+              <div className="pc-split">
+                <div>
+                  <div style={{borderRadius:12,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",marginBottom:14,border:"1px solid #e2e8f0"}}>
+                    <BigCalendar days={calDays} calYear={calY} calMonth={calM} calendarMap={calendarMap}
+                      isWeek={view==="week"} onSelectDate={setSelDate}
+                      onAddBooking={date=>setBookingModal({date,slot:"10:00",record:null})}
+                      onDatePopup={date=>{setSelDate(date);setDayPopup(date);}}
+                      selectedDate={selDate}/>
                   </div>
-                  <button onClick={()=>setBookingModal({date:selDate,slot:"10:00",record:null})}
-                    style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>
-                    + 예약 추가
-                  </button>
                 </div>
-
-                {/* 연속 배너 */}
-                {isBlocked&&isCont&&(
-                  <div onClick={()=>setBookingModal({date:allDayRec.date,slot:"종일",record:allDayRec})}
-                    style={{display:"flex",alignItems:"center",gap:10,background:"#faf5ff",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid #e9d5ff",cursor:"pointer"}}>
-                    <div style={{fontSize:18}}>🔧</div>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,color:"#7c3aed",fontSize:13}}>연속 작업 진행중</div>
-                      <div style={{fontSize:12,color:"#6d28d9",marginTop:2}}>{getCustomer(allDayRec.customerId)?.name||allDayRec.customerId} · {(allDayRec.services||[]).join(", ")}</div>
-                      <div style={{fontSize:11,color:"#8b5cf6",marginTop:1}}>📅 {allDayRec.date} ~ {addDays(allDayRec.date,(allDayRec.multiDay||1)-1)}</div>
+                <div className="pc-sticky">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div>
+                      <span style={{fontSize:15,fontWeight:700,color:"#1e293b"}}>{selDate.replace(/-/g,".")}</span>
+                      <span style={{fontSize:12,color:"#94a3b8",marginLeft:6}}>{WD(selDate)}요일</span>
                     </div>
-                    <span style={{fontSize:11,color:"#8b5cf6"}}>확인 ›</span>
+                    <button onClick={()=>setBookingModal({date:selDate,slot:"10:00",record:null})}
+                      style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>+ 예약 추가</button>
                   </div>
-                )}
-
-                {/* 종일 슬롯 */}
-                {!isCont&&(()=>{
-                  const rec=getSlotRec(selDate,"종일"),cust=rec?getCustomer(rec.customerId):null;
-                  const btc=cust?BT[cust.bookingType]:null;
-                  return(
-                    <div onClick={()=>setBookingModal({date:selDate,slot:"종일",record:rec||null})}
-                      style={{borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer",
-                        background:rec?"#faf5ff":"#fff",
-                        border:rec?"1.5px solid #c4b5fd":"1.5px dashed #e2e8f0",transition:"all 0.15s"}}>
-                      {rec&&cust?(
-                        <>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                              <span style={{fontSize:10,fontWeight:700,background:"#ede9fe",color:"#7c3aed",padding:"2px 8px",borderRadius:6,border:"1px solid #c4b5fd"}}>◆ 종일</span>
-                              {rec.multiDay>1&&<span style={{fontSize:10,fontWeight:700,background:"#fef2f2",color:"#dc2626",padding:"2px 8px",borderRadius:6,border:"1px solid #fecaca"}}>{rec.multiDay}일</span>}
+                  {isBlocked&&isCont&&(
+                    <div onClick={()=>setBookingModal({date:allDayRec.date,slot:"종일",record:allDayRec})}
+                      style={{display:"flex",alignItems:"center",gap:10,background:"#faf5ff",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid #e9d5ff",cursor:"pointer"}}>
+                      <div style={{fontSize:18}}>🔧</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,color:"#7c3aed",fontSize:13}}>연속 작업 진행중</div>
+                        <div style={{fontSize:12,color:"#6d28d9",marginTop:2}}>{getCustomer(allDayRec.customerId)?.name||allDayRec.customerId} · {(allDayRec.services||[]).join(", ")}</div>
+                        <div style={{fontSize:11,color:"#8b5cf6",marginTop:1}}>📅 {allDayRec.date} ~ {addDays(allDayRec.date,(allDayRec.multiDay||1)-1)}</div>
+                      </div>
+                    </div>
+                  )}
+                  {!isCont&&(()=>{
+                    const rec=getSlotRec(selDate,"종일"),cust=rec?getCustomer(rec.customerId):null;
+                    const btc=cust?BT[cust.bookingType]:null;
+                    return(
+                      <div onClick={()=>setBookingModal({date:selDate,slot:"종일",record:rec||null})}
+                        style={{borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer",
+                          background:rec?"#faf5ff":"#fff",border:rec?"1.5px solid #c4b5fd":"1.5px dashed #e2e8f0"}}>
+                        {rec&&cust?(
+                          <>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                              <div style={{display:"flex",gap:6}}>
+                                <span style={{fontSize:10,fontWeight:700,background:"#ede9fe",color:"#7c3aed",padding:"2px 8px",borderRadius:6,border:"1px solid #c4b5fd"}}>◆ 종일</span>
+                                {rec.multiDay>1&&<span style={{fontSize:10,fontWeight:700,background:"#fef2f2",color:"#dc2626",padding:"2px 8px",borderRadius:6,border:"1px solid #fecaca"}}>{rec.multiDay}일</span>}
+                              </div>
+                              {btc&&<span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"2px 6px",borderRadius:5,border:`1px solid ${btc.border}`}}>{cust.bookingType}</span>}
                             </div>
-                            {btc&&<span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"2px 6px",borderRadius:5,border:`1px solid ${btc.border}`}}>{cust.bookingType}</span>}
+                            <div style={{fontWeight:700,fontSize:15,color:"#1e293b",marginTop:8}}>{cust.name||cust.phone}</div>
+                            {cust.name&&<div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{cust.phone}</div>}
+                            <div style={{fontSize:12,color:"#475569",marginTop:2}}>{rec.carModel||(cust.cars||[])[0]||""} · {(rec.services||[]).join(", ")}</div>
+                            <div style={{fontSize:13,color:"#1e293b",fontWeight:700,marginTop:4}}>{formatKRW(rec.amount)} · {rec.payment}</div>
+                          </>
+                        ):(
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",padding:"2px 8px",borderRadius:6}}>◆ 종일</span>
+                            <span style={{color:"#94a3b8",fontSize:12}}>+ 종일 / 장기 작업 등록</span>
                           </div>
-                          <div style={{fontWeight:700,fontSize:15,color:"#1e293b",marginTop:8}}>{cust.name||cust.phone}</div>
-                          {cust.name&&<div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{cust.phone}</div>}
-                          <div style={{fontSize:12,color:"#475569",marginTop:2}}>{rec.carModel||(cust.cars||[])[0]||""} · {(rec.services||[]).join(", ")}</div>
-                          <div style={{fontSize:13,color:"#1e293b",fontWeight:700,marginTop:4}}>{formatKRW(rec.amount)} · {rec.payment}</div>
-                        </>
-                      ):(
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <span style={{fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",padding:"2px 8px",borderRadius:6}}>◆ 종일</span>
-                          <span style={{color:"#94a3b8",fontSize:12}}>+ 종일 / 장기 작업 등록</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* 구분선 */}
-                <div style={{display:"flex",alignItems:"center",margin:"8px 0",gap:6}}>
-                  <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                  <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>TIME SLOTS</span>
-                  <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                </div>
-
-                {/* 기본 3슬롯 */}
-                {TIME_SLOTS.map(slot=>{
-                  const slotStyle=SC_STYLE[slot];
-                  // 해당 날짜+슬롯의 모든 예약 (추가 포함)
-                  const slotRecs=records.filter(r=>r.date===selDate&&r.slot===slot&&r.slot!=="종일");
-                  const rec=slotRecs[0]||null; // 기본 1건
-                  const cust=rec?getCustomer(rec.customerId):null;
-                  const blocked=isBlocked&&!rec;
-                  const btc=cust?BT[cust.bookingType]:null;
-                  const ac=rec?amtColor(rec.amount,cust?.bookingType):null;
-                  return(
-                    <div key={slot} style={{marginBottom:7}}>
-                      <div onClick={()=>{if(!blocked)setBookingModal({date:selDate,slot,record:rec||null});}}
-                        style={{background:rec?ac.bg:slotStyle.bg,borderRadius:12,padding:"11px 14px",
-                          display:"flex",alignItems:"center",gap:12,
-                          border:`1.5px solid ${rec?ac.border:slotStyle.border}`,
-                          cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.35:1,transition:"all 0.15s",
-                          boxShadow:rec?`0 2px 8px ${ac.border}22`:"none"}}>
-                        {/* 시간 라벨 - 슬롯 색상으로 통일 */}
-                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,minWidth:42,
-                          color:slotStyle.text,letterSpacing:0.5,fontWeight:800,
-                          background:slotStyle.bg,borderRadius:6,padding:"2px 6px",
-                          border:`1px solid ${slotStyle.border}`,textAlign:"center",flexShrink:0}}>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <div style={{display:"flex",alignItems:"center",margin:"8px 0",gap:6}}>
+                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
+                    <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>TIME SLOTS</span>
+                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
+                  </div>
+                  {TIME_SLOTS.map(slot=>{
+                    const ss=SC_STYLE[slot];
+                    const rec=records.filter(r=>r.date===selDate&&r.slot===slot)[0]||null;
+                    const cust=rec?getCustomer(rec.customerId):null;
+                    const blocked=isBlocked&&!rec;
+                    const btc=cust?BT[cust.bookingType]:null;
+                    const ac=rec?amtColor(rec.amount,cust?.bookingType):null;
+                    return(
+                      <div key={slot} onClick={()=>{if(!blocked)setBookingModal({date:selDate,slot,record:rec||null});}}
+                        style={{background:rec?ac.bg:ss.bg,borderRadius:12,padding:"11px 14px",marginBottom:7,
+                          display:"flex",alignItems:"center",gap:12,border:`1.5px solid ${rec?ac.border:ss.border}`,
+                          cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.35:1}}>
+                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,minWidth:42,color:ss.text,
+                          background:ss.bg,borderRadius:6,padding:"2px 6px",border:`1px solid ${ss.border}`,textAlign:"center",flexShrink:0}}>
                           {slot}
                         </div>
                         {blocked?<div style={{color:"#cbd5e1",fontSize:12}}>🔒 종일 작업중</div>
@@ -1650,107 +1859,81 @@ function App(){
                             <div style={{fontSize:12,fontWeight:700,marginTop:2,color:ac.text}}>{formatKRW(rec.amount)} · {rec.payment}</div>
                             {rec.memo&&<div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>📝 {rec.memo}</div>}
                           </div>
-                        ):<div style={{color:slotStyle.text,fontSize:12,opacity:0.5}}>+ 예약 등록</div>}
+                        ):<div style={{color:ss.text,fontSize:12,opacity:0.5}}>+ 예약 등록</div>}
                       </div>
-                    </div>
-                  );
-                })}
-
-                {/* 추가 슬롯 구분선 */}
-                <div style={{display:"flex",alignItems:"center",margin:"10px 0 8px",gap:6}}>
-                  <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                  <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>추가 작업</span>
-                  <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                </div>
-
-                {/* 추가 예약 목록 (slot="추가") */}
-                {records.filter(r=>r.date===selDate&&r.slot==="추가").map((rec,i)=>{
-                  const cust=getCustomer(rec.customerId);
-                  const btc=cust?BT[cust.bookingType]:null;
-                  const ac=amtColor(rec.amount,cust?.bookingType);
-                  const slotStyle=SC_STYLE["추가"];
-                  return(
-                    <div key={rec.id} onClick={()=>setBookingModal({date:selDate,slot:"추가",record:rec})}
-                      style={{background:ac.bg,borderRadius:12,padding:"11px 14px",marginBottom:7,
-                        display:"flex",alignItems:"center",gap:12,
-                        border:`1.5px solid ${ac.border}`,cursor:"pointer",transition:"all 0.15s"}}>
-                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,minWidth:42,
-                        color:slotStyle.text,background:slotStyle.bg,borderRadius:6,padding:"2px 4px",
-                        border:`1px solid ${slotStyle.border}`,textAlign:"center",flexShrink:0,lineHeight:1.3}}>
-                        추가
-                      </div>
-                      <div style={{flex:1}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                          <span style={{fontWeight:700,fontSize:14,color:"#0f172a"}}>{cust?.name||cust?.phone||"고객"}</span>
-                          {btc&&<span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 5px",borderRadius:4,border:`1px solid ${btc.border}`}}>{cust.bookingType}</span>}
+                    );
+                  })}
+                  <div style={{display:"flex",alignItems:"center",margin:"10px 0 8px",gap:6}}>
+                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
+                    <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>추가 작업</span>
+                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
+                  </div>
+                  {records.filter(r=>r.date===selDate&&r.slot==="추가").map(rec=>{
+                    const cust=getCustomer(rec.customerId);
+                    const ac=amtColor(rec.amount,cust?.bookingType);
+                    const ss=SC_STYLE["추가"];
+                    return(
+                      <div key={rec.id} onClick={()=>setBookingModal({date:selDate,slot:"추가",record:rec})}
+                        style={{background:ac.bg,borderRadius:12,padding:"11px 14px",marginBottom:7,
+                          display:"flex",alignItems:"center",gap:12,border:`1.5px solid ${ac.border}`,cursor:"pointer"}}>
+                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,minWidth:42,color:ss.text,
+                          background:ss.bg,borderRadius:6,padding:"2px 4px",border:`1px solid ${ss.border}`,textAlign:"center"}}>추가</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>{cust?.name||cust?.phone||"고객"}</div>
+                          <div style={{fontSize:11,color:"#64748b",marginTop:1}}>{(rec.services||[]).join(", ")}</div>
+                          <div style={{fontSize:12,fontWeight:700,marginTop:1,color:ac.text}}>{formatKRW(rec.amount)}</div>
                         </div>
-                        <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{rec.carModel||""} · {(rec.services||[]).join(", ")}</div>
-                        <div style={{fontSize:12,fontWeight:700,marginTop:2,color:ac.text}}>{formatKRW(rec.amount)} · {rec.payment}</div>
-                        {rec.memo&&<div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>📝 {rec.memo}</div>}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                  <button onClick={()=>setBookingModal({date:selDate,slot:"추가",record:null})}
+                    style={{width:"100%",background:"#f8fafc",border:"1.5px dashed #cbd5e1",borderRadius:12,
+                      padding:"10px",fontSize:12,color:"#94a3b8",cursor:"pointer",fontWeight:600,textAlign:"center"}}>
+                    ＋ 작업세차 / 응급 추가 기록
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-                {/* 추가 예약 등록 버튼 */}
-                <button onClick={()=>setBookingModal({date:selDate,slot:"추가",record:null})}
-                  style={{width:"100%",background:"#f8fafc",border:"1.5px dashed #cbd5e1",borderRadius:12,
-                    padding:"10px 14px",fontSize:12,color:"#94a3b8",cursor:"pointer",fontWeight:600,
-                    display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                  ＋ 작업세차 / 응급 추가 기록
+          {/* 고객 */}
+          {tab==="customers"&&(
+            <div style={{animation:"fadeUp 0.3s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+                <div>
+                  <div style={{fontSize:20,fontWeight:800,color:"#1e293b"}}>👥 고객 관리</div>
+                  <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{customers.length}명 등록</div>
+                </div>
+                <button onClick={()=>setCustModal("new")}
+                  style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,cursor:"pointer",fontWeight:700}}>
+                  + 신규 등록
                 </button>
               </div>
+              <CustomerSearch customers={customers} records={records} onEdit={c=>setCustModal(c)}/>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ══ 고객 탭 ══ */}
-        {tab==="customers"&&(
-          <div style={{animation:"fadeUp 0.3s ease"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#1e293b"}}>CUSTOMERS</div>
-                <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{customers.length}명 등록</div>
-              </div>
-              <button onClick={()=>setCustModal("new")}
-                style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:8,padding:"7px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>
-                + 신규 등록
-              </button>
-            </div>
-            <CustomerSearch customers={customers} records={records} onEdit={c=>setCustModal(c)}/>
-          </div>
-        )}
+          {/* 분석 */}
+          {tab==="analytics"&&(
+            <AnalyticsTab records={records} customers={customers} getCustomer={getCustomer}/>
+          )}
 
-        {/* ══ 분석 탭 ══ */}
-        {tab==="analytics"&&(()=>{
-          const now=new Date();
-          const thisYear=now.getFullYear();
-
-          // 연도 선택 state (IIFE 안에서 useState 못 씀 → 부모에서 관리)
-          // → AnalyticsTab 컴포넌트로 분리
-          return <AnalyticsTab records={records} customers={customers} getCustomer={getCustomer}/>;
-        })()}
-      </main>
+        </div>
+      </div>
 
       {dayPopup&&(
-        <DayPopup
-          date={dayPopup}
-          records={records}
-          customers={customers}
-          getCustomer={getCustomer}
+        <DayPopup date={dayPopup} records={records} customers={customers} getCustomer={getCustomer}
           onClose={()=>setDayPopup(null)}
           onEdit={rec=>{setDayPopup(null);setBookingModal({date:rec.date,slot:rec.slot,record:rec});}}
           onDelete={async id=>{await deleteRecord(id);}}
-          onAdd={date=>{setBookingModal({date,slot:"10:00",record:null});}}
-        />
+          onAdd={date=>{setBookingModal({date,slot:"10:00",record:null});}}/>
       )}
       {bookingModal&&(
         <BookingModal modal={bookingModal} customers={customers}
           onSave={async d=>{await saveRecord(d);setBookingModal(null);}}
           onDelete={async id=>{await deleteRecord(id);setBookingModal(null);}}
           onClose={()=>setBookingModal(null)}
-          onAddCustomer={()=>{setBookingModal(null);setCustModal("new");}}
-        />
+          onAddCustomer={()=>{setBookingModal(null);setCustModal("new");}}/>
       )}
       {custModal&&(
         <CustomerModal
@@ -1758,13 +1941,11 @@ function App(){
           records={records.filter(r=>custModal!=="new"&&(r.customerId===custModal.id||r.customerId===String(custModal.id)))}
           onSave={async d=>{await saveCustomer(d);setCustModal(null);}}
           onDelete={async id=>{await deleteCustomer(id);setCustModal(null);}}
-          onClose={()=>setCustModal(null)}
-        />
+          onClose={()=>setCustModal(null)}/>
       )}
     </div>
   );
 }
-
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
