@@ -455,11 +455,11 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                   borderTop:isSel?"2px solid #1e293b":isToday?"2px solid #f59e0b":"2px solid transparent",
                   transition:"background 0.1s",
                   boxSizing:"border-box",
-                  overflow:"hidden",
+                  overflow:"visible",
                 }}>
 
                 {/* 날짜 + 버튼 */}
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3,position:"relative",zIndex:2}}>
                   <span style={{fontSize:isWeek?15:isPC?13:11,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
                     color:isSel?"#fff":isToday?"#d97706":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155"}}>
                     {isToday&&!isSel&&<span style={{fontSize:6,marginRight:2,color:"#f59e0b"}}>●</span>}
@@ -472,29 +472,32 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                       justifyContent:"center",padding:0,flexShrink:0}}>+</button>
                 </div>
 
-                {/* 종일/다일 바 - allDay 배열에서 각 레코드별로 독립 행 */}
-                {allDayItems.map((item)=>{
+                {/* 종일/다일 바 - overflow:visible 셀에서 인접 셀로 확장 */}
+                {allDayItems.map((item,rowIdx)=>{
                   const isFirst=item._isFirst===true;
                   const isLast=item._isLast===true;
                   const isSingle=(item._spanTotal||1)===1;
                   const ac=amtColor(item.amount,item._bookingType);
                   return(
-                    <div key={`all-${item.id}`}
+                    <div key={`all-${item.id}-${rowIdx}`}
                       style={{
                         fontSize:isPC?10:9,fontWeight:700,
                         padding:"2px 4px",marginBottom:2,
-                        marginLeft: isFirst||isSingle ? "0" : "-5px",
-                        marginRight: isLast||isSingle ? "0" : "-5px",
+                        // 연속 바: 셀 gap(1px)을 넘어 인접 셀과 이어지도록 확장
+                        marginLeft: isFirst||isSingle ? 0 : -6,
+                        marginRight: isLast||isSingle ? 0 : -6,
                         background:ac.bg,
                         color:ac.text,
                         borderTop:`1.5px solid ${ac.border}`,
                         borderBottom:`1.5px solid ${ac.border}`,
                         borderLeft: isFirst||isSingle ? `3px solid ${ac.border}` : "none",
-                        borderRight: isLast||isSingle ? `1px solid ${ac.border}` : "none",
-                        borderRadius: isSingle?"4px" : isFirst?"4px 0 0 4px" : isLast?"0 4px 4px 0" : "0",
+                        borderRight: isLast||isSingle ? `1.5px solid ${ac.border}` : "none",
+                        borderRadius: isSingle?4 : isFirst?"4px 0 0 4px" : isLast?"0 4px 4px 0" : 0,
                         whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                        position:"relative",zIndex:1,
+                        minHeight:isPC?16:14,lineHeight:isPC?"16px":"14px",
                       }}>
-                      {isFirst ? (item._custName||"종일") : "\u00A0"}
+                      {isFirst||isSingle ? (item._custName||"종일") : "\u00A0"}
                     </div>
                   );
                 })}
