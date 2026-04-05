@@ -4,6 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
   <title>G-MENIC CRM</title>
+  <meta name="version" content="2026.04.05"/>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -319,17 +320,37 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
               fontFamily:"'Bebas Neue',sans-serif",width:CELL_W,boxSizing:"border-box"}}>{d}</div>
           ))}
         </div>
-        {/* 날짜 셀 - 높이 자동 확장, overflow 제거 */}
-        <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
+        {/* 날짜 그리드 - overflow:visible 로 내용 잘림 없게 */}
+        <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,
+          background:"#e2e8f0",borderRadius:"0 0 10px 10px",
+          overflow:"visible" /* ← hidden 제거해서 내용이 셀 밖으로 밀리는 현상 방지 */
+        }}>
           {days.map((d,i)=>{
-            if(!d)return <div key={`e${i}`} style={{background:"#f8fafc",minHeight:isWeek?110:90,width:CELL_W}}/>;
+            if(!d)return(
+              <div key={`e${i}`} style={{background:"#f8fafc",minHeight:isWeek?110:90,
+                width:CELL_W,boxSizing:"border-box",borderRadius:i===days.length-1||i===days.length-2?"0 0 10px 0":0}}/>
+            );
             const ds=isWeek?d:`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
             const isToday=ds===todayStr(),isSel=ds===selectedDate;
             const dayData=calendarMap[ds]||[];
-            // 종일 항목들 (여러 개 가능 - 각각 표시)
+
+            // 종일 항목들 - record ID 기준으로 중복 제거
             const allDayItems=dayData.filter(r=>r.slot==="종일");
-            // 시간/추가 항목들
+            // 같은 record ID 중복 제거 (다일 겹침 방지)
+            const seenIds=new Set();
+            const uniqueAllDay=allDayItems.filter(r=>{
+              if(seenIds.has(r.id)) return false;
+              seenIds.add(r.id); return true;
+            });
+
+            // 시간/추가 항목 - 역시 중복 없이
             const timeItems=dayData.filter(r=>r.slot!=="종일");
+            const seenTIds=new Set();
+            const uniqueTime=timeItems.filter(r=>{
+              if(seenTIds.has(r.id)) return false;
+              seenTIds.add(r.id); return true;
+            });
+
             const dow=new Date(ds).getDay();
             const displayDay=isWeek?Number(ds.slice(8)):d;
             return(
@@ -337,15 +358,16 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                 onClick={()=>onDatePopup(ds)}
                 style={{
                   background:isSel?"#1e293b":isToday?"#fffbeb":"#fff",
-                  minHeight:isWeek?110:90, /* 최소 높이만, 내용에 따라 자동 확장 */
+                  minHeight:isWeek?110:90,
                   width:CELL_W,
                   padding:"5px 4px",cursor:"pointer",
                   borderTop:isSel?"2px solid #1e293b":isToday?"2px solid #f59e0b":"2px solid transparent",
                   transition:"background 0.1s",
                   boxSizing:"border-box",
-                  overflow:"visible", /* 내용 잘리지 않게 */
+                  overflow:"hidden", /* 셀 자체는 hidden, 내용은 아래로만 확장 */
+                  wordBreak:"break-all",
                 }}>
-                {/* 날짜 + + 버튼 */}
+                {/* 날짜 + 버튼 */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
                   <span style={{fontSize:isWeek?16:12,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
                     color:isSel?"#fff":isToday?"#d97706":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155"}}>
@@ -359,31 +381,40 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                       justifyContent:"center",padding:0,flexShrink:0}}>+</button>
                 </div>
 
-                {/* 종일/다일 항목들 - 각각 따로 표시 */}
-                {allDayItems.map((item,ai)=>{
+                {/* 종일/다일 항목 - 각각 별도 바, 금액대 색상 적용 */}
+                {uniqueAllDay.map((item,ai)=>{
                   const isFirst=item._isFirst,isLast=item._isLast,isSingle=item._spanTotal===1;
+                  // 금액대별 색상 (종일도 동일하게)
+                  const ac=amtColor(item.amount,item._bookingType);
                   return(
-                    <div key={`ad-${ai}`} style={{
-                      fontSize:9,fontWeight:700,padding:"2px 4px",marginBottom:2,
+                    <div key={`ad-${item.id}-${ai}`} style={{
+                      fontSize:9,fontWeight:700,
+                      padding:"2px 4px",
+                      marginBottom:2,
+                      /* 연속 바: 시작일은 왼쪽 패딩, 중간/끝은 왼쪽 마진 당겨서 이음 */
                       marginLeft:(!isFirst&&!isSingle)?"-5px":"0",
                       marginRight:(!isLast&&!isSingle)?"-5px":"0",
-                      background:"#ede9fe",color:"#6d28d9",
-                      borderTop:"1px solid #c4b5fd",borderBottom:"1px solid #c4b5fd",
-                      borderLeft:isFirst||isSingle?"2px solid #8b5cf6":"none",
-                      borderRight:isLast||isSingle?"1px solid #c4b5fd":"none",
+                      /* 금액대 색상 */
+                      background:ac.bg,
+                      color:ac.text,
+                      borderTop:`1px solid ${ac.border}`,
+                      borderBottom:`1px solid ${ac.border}`,
+                      borderLeft:isFirst||isSingle?`2px solid ${ac.border}`:"none",
+                      borderRight:isLast||isSingle?`1px solid ${ac.border}`:"none",
                       borderRadius:isSingle?"4px":isFirst?"4px 0 0 4px":isLast?"0 4px 4px 0":"0",
                       whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
                     }}>
-                      {isFirst ? item._custName||"종일" : "\u00A0"}
+                      {/* 시작일에만 고객명, 연속일은 빈칸으로 연결감 유지 */}
+                      {isFirst ? (item._custName||"종일") : "\u00A0"}
                     </div>
                   );
                 })}
 
-                {/* 시간/추가 예약 - 전부 표시 */}
-                {timeItems.map((r,ri)=>{
+                {/* 시간/추가 예약 - 금액대 색상, 중복 없이 전부 표시 */}
+                {uniqueTime.map((r,ri)=>{
                   const ac=amtColor(r.amount,r._bookingType);
                   return(
-                    <div key={ri} style={{
+                    <div key={`t-${r.id}-${ri}`} style={{
                       fontSize:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
                       background:ac.bg,borderLeft:`2px solid ${ac.border}`,
                       whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
@@ -737,78 +768,122 @@ function AnalyticsTab({records,customers,getCustomer}){
   const now=new Date();
   const [selYear,setSelYear]=useState(now.getFullYear());
 
-  // 연도 목록 추출
+  // 연도 목록
   const years=useMemo(()=>{
     const ys=new Set(records.map(r=>r.date?.slice(0,4)).filter(Boolean));
     return [...ys].sort((a,b)=>b-a);
   },[records]);
 
-  // 선택 연도의 월별 통계
+  // 네이버 고객 세분화 함수 (방문횟수 기준)
+  const getNaverGrade=useCallback((customerId)=>{
+    const cnt=records.filter(r=>r.customerId===customerId||r.customerId===String(customerId)).length;
+    if(cnt>=6) return "네이버단골";
+    if(cnt>=2) return "네이버기존";
+    return "네이버신규";
+  },[records]);
+
+  // 통계용 통합 분류 (신규=신규+네이버신규, 기존=기존+네이버기존, 단골=단골+네이버단골)
+  const getMergedType=useCallback((customer,customerId)=>{
+    if(!customer) return "기타";
+    const bt=customer.bookingType;
+    if(bt==="지메닉") return "지메닉";
+    if(bt==="네이버"){
+      const grade=getNaverGrade(customerId);
+      if(grade==="네이버단골") return "단골";
+      if(grade==="네이버기존") return "기존";
+      return "신규";
+    }
+    return bt; // 신규/기존/단골
+  },[getNaverGrade]);
+
+  // 월별 통계 (선택 연도)
   const monthlyData=useMemo(()=>{
     return Array.from({length:12},(_,mi)=>{
       const mo=`${selYear}-${String(mi+1).padStart(2,"0")}`;
       const moRecs=records.filter(r=>r.date?.startsWith(mo));
-      if(moRecs.length===0)return{mo:mi+1,count:0,revenue:0,avg:0,btMap:{},svcMap:{}};
-
+      if(!moRecs.length) return{mo:mi+1,count:0,revenue:0,avg:0,btMap:{},mergedMap:{}};
       const revenue=moRecs.reduce((s,r)=>s+Number(r.amount),0);
-      const avg=Math.round(revenue/moRecs.length);
-
-      // 예약구분별 건수
-      const btMap={};
+      const btMap={},mergedMap={};
       moRecs.forEach(r=>{
         const c=getCustomer(r.customerId);
         const bt=c?.bookingType||"기타";
         btMap[bt]=(btMap[bt]||0)+1;
+        const mt=getMergedType(c,r.customerId);
+        mergedMap[mt]=(mergedMap[mt]||0)+1;
       });
-
-      // 작업내용별 건수
-      const svcMap={};
-      moRecs.forEach(r=>{
-        (r.services||[]).forEach(s=>{svcMap[s]=(svcMap[s]||0)+1;});
-      });
-
-      return{mo:mi+1,count:moRecs.length,revenue,avg,btMap,svcMap};
+      return{mo:mi+1,count:moRecs.length,revenue,avg:Math.round(revenue/moRecs.length),btMap,mergedMap};
     });
-  },[records,selYear,getCustomer]);
+  },[records,selYear,getCustomer,getMergedType]);
 
   const yearTotal=monthlyData.reduce((s,m)=>s+m.revenue,0);
   const yearCount=monthlyData.reduce((s,m)=>s+m.count,0);
 
-  // 연간 서비스 TOP
+  // 선택 연도 예약구분별 (원본 + 네이버 세분화)
+  const yearRecs=useMemo(()=>records.filter(r=>r.date?.startsWith(String(selYear))),[records,selYear]);
+
+  // 네이버 세분화 상세
+  const naverDetail=useMemo(()=>{
+    const naverCusts=customers.filter(c=>c.bookingType==="네이버");
+    const result={네이버신규:[],네이버기존:[],네이버단골:[]};
+    naverCusts.forEach(c=>{
+      const grade=getNaverGrade(c.id);
+      result[grade].push(c);
+    });
+    return result;
+  },[customers,getNaverGrade]);
+
+  // 통합 집계 (통계용)
+  const mergedStats=useMemo(()=>{
+    const cats=["신규","기존","단골","지메닉"];
+    return cats.map(cat=>{
+      const recs=yearRecs.filter(r=>{
+        const c=getCustomer(r.customerId);
+        return getMergedType(c,r.customerId)===cat;
+      });
+      const rev=recs.reduce((s,r)=>s+Number(r.amount),0);
+      return{cat,count:recs.length,rev,avg:recs.length?Math.round(rev/recs.length):0};
+    });
+  },[yearRecs,getCustomer,getMergedType]);
+
+  // TOP 10 작업
   const svcTotal={};
-  records.filter(r=>r.date?.startsWith(String(selYear))).forEach(r=>{
-    (r.services||[]).forEach(s=>{svcTotal[s]=(svcTotal[s]||0)+1;});
-  });
+  yearRecs.forEach(r=>(r.services||[]).forEach(s=>{svcTotal[s]=(svcTotal[s]||0)+1;}));
   const topSvcs=Object.entries(svcTotal).sort((a,b)=>b[1]-a[1]).slice(0,10);
   const maxSvc=topSvcs[0]?.[1]||1;
 
   const formatK=n=>n>=10000?`${Math.round(n/10000)}만`:n.toLocaleString("ko-KR");
 
+  // 색상 팔레트
+  const CAT_COLOR={
+    신규:  {bg:"#f0fdf4",color:"#16a34a",border:"#86efac"},
+    기존:  {bg:"#eff6ff",color:"#2563eb",border:"#93c5fd"},
+    단골:  {bg:"#fffbeb",color:"#d97706",border:"#fcd34d"},
+    지메닉:{bg:"#faf5ff",color:"#7c3aed",border:"#c4b5fd"},
+  };
+  const NAVER_COLOR={
+    네이버신규:{bg:"#f0fdf4",color:"#15803d",border:"#86efac"},
+    네이버기존:{bg:"#dcfce7",color:"#16a34a",border:"#4ade80"},
+    네이버단골:{bg:"#bbf7d0",color:"#166534",border:"#22c55e"},
+  };
+
   return(
     <div style={{animation:"fadeUp 0.3s ease"}}>
+      {/* 헤더 + 드롭박스 */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#1e293b"}}>ANALYTICS</div>
-        {/* 연도 선택 */}
-        <div style={{display:"flex",gap:4}}>
-          {years.map(y=>(
-            <button key={y} onClick={()=>setSelYear(Number(y))}
-              style={{padding:"5px 12px",border:"1.5px solid",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
-                borderColor:selYear===Number(y)?"#1e293b":"#e2e8f0",
-                background:selYear===Number(y)?"#1e293b":"#fff",
-                color:selYear===Number(y)?"#fff":"#64748b"}}>
-              {y}
-            </button>
-          ))}
-        </div>
+        <select
+          value={selYear}
+          onChange={e=>setSelYear(Number(e.target.value))}
+          style={{padding:"7px 12px",border:"1.5px solid #1e293b",borderRadius:8,fontSize:13,
+            fontWeight:700,color:"#1e293b",background:"#fff",cursor:"pointer",
+            fontFamily:"'Noto Sans KR',sans-serif",outline:"none"}}>
+          {years.map(y=><option key={y} value={y}>{y}년</option>)}
+        </select>
       </div>
 
-      {/* 연간 요약 카드 */}
+      {/* 연간 요약 */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
-        {[
-          ["연간 매출",formatKRW(yearTotal)],
-          ["총 입고",`${yearCount}대`],
-          ["월평균",formatKRW(Math.round(yearTotal/12))],
-        ].map(([l,v])=>(
+        {[["연간 매출",formatKRW(yearTotal)],["총 입고",`${yearCount}대`],["월평균",formatKRW(Math.round(yearTotal/(yearCount||1)))]].map(([l,v])=>(
           <div key={l} style={{background:"#fff",borderRadius:12,padding:"14px 10px",textAlign:"center",border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
             <div style={{fontSize:10,color:"#94a3b8",marginBottom:6,fontWeight:600}}>{l}</div>
             <div style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{v}</div>
@@ -816,115 +891,243 @@ function AnalyticsTab({records,customers,getCustomer}){
         ))}
       </div>
 
-      {/* 월별 매출표 - 세로:항목, 가로:월 */}
+      {/* ① 월별 매출표 */}
       <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14,overflow:"hidden"}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b"}}>월별 매출 현황 · {selYear}</div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b"}}>월별 매출 현황 · {selYear}년</div>
           <div style={{fontSize:10,color:"#94a3b8"}}>← 좌우 스크롤</div>
         </div>
         <div className="tbl-wrap">
           <table>
             <thead>
               <tr>
-                {/* 첫번째 열: 항목명 */}
-                <th style={{textAlign:"left",minWidth:70,background:"#1e293b"}}>항목</th>
-                {/* 이후 열: 1월~12월 + 합계 */}
+                <th style={{textAlign:"left",minWidth:70}}>항목</th>
                 {monthlyData.map(m=>(
-                  <th key={m.mo} style={{minWidth:52,background:m.count>0?"#1e293b":"#334155",opacity:m.count===0?0.5:1}}>
-                    {m.mo}월
-                  </th>
+                  <th key={m.mo} style={{minWidth:48,opacity:m.count===0?0.4:1}}>{m.mo}월</th>
                 ))}
-                <th style={{background:"#0f172a",minWidth:64}}>합계</th>
+                <th style={{background:"#0f172a",minWidth:60}}>합계</th>
               </tr>
             </thead>
             <tbody>
-              {/* 입고 */}
               <tr>
                 <td className="mo" style={{textAlign:"left",fontWeight:700}}>입고(대)</td>
-                {monthlyData.map(m=>(
-                  <td key={m.mo} className="num">{m.count>0?m.count:"-"}</td>
-                ))}
+                {monthlyData.map(m=><td key={m.mo} className="num">{m.count||"-"}</td>)}
                 <td className="num" style={{background:"#f8fafc",fontWeight:800}}>{yearCount}</td>
               </tr>
-              {/* 매출 */}
               <tr>
-                <td className="mo" style={{textAlign:"left",fontWeight:700}}>매출(원)</td>
-                {monthlyData.map(m=>(
-                  <td key={m.mo} className="amt">{m.count>0?formatK(m.revenue):"-"}</td>
-                ))}
+                <td className="mo" style={{textAlign:"left",fontWeight:700}}>매출</td>
+                {monthlyData.map(m=><td key={m.mo} className="amt">{m.count?formatK(m.revenue):"-"}</td>)}
                 <td className="amt" style={{background:"#f8fafc",fontWeight:800}}>{formatK(yearTotal)}</td>
               </tr>
-              {/* 객단가 */}
               <tr>
                 <td className="mo" style={{textAlign:"left",fontWeight:700}}>객단가</td>
-                {monthlyData.map(m=>(
-                  <td key={m.mo} className="amt">{m.count>0?formatK(m.avg):"-"}</td>
-                ))}
-                <td className="amt" style={{background:"#f8fafc",fontWeight:800}}>{yearCount>0?formatK(Math.round(yearTotal/yearCount)):"-"}</td>
+                {monthlyData.map(m=><td key={m.mo} className="amt">{m.count?formatK(m.avg):"-"}</td>)}
+                <td className="amt" style={{background:"#f8fafc",fontWeight:800}}>{yearCount?formatK(Math.round(yearTotal/yearCount)):"-"}</td>
               </tr>
-              {/* 구분선 */}
-              <tr><td colSpan={14} style={{background:"#e2e8f0",height:2,padding:0}}/></tr>
-              {/* 예약구분별 */}
-              {BOOKING_TYPES.map(bt=>{
-                const rowTotal=monthlyData.reduce((s,m)=>s+(m.btMap[bt]||0),0);
-                const btc=BT[bt];
+              <tr><td colSpan={15} style={{background:"#e2e8f0",height:2,padding:0}}/></tr>
+              {/* 통합 집계 행 (신규/기존/단골/지메닉) */}
+              {["신규","기존","단골","지메닉"].map(cat=>{
+                const cc=CAT_COLOR[cat];
+                const rowTotal=monthlyData.reduce((s,m)=>s+(m.mergedMap[cat]||0),0);
                 return(
-                  <tr key={bt}>
+                  <tr key={cat}>
                     <td style={{textAlign:"left"}}>
-                      <span style={{fontSize:10,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`}}>{bt}</span>
+                      <span style={{fontSize:10,fontWeight:700,background:cc.bg,color:cc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${cc.border}`}}>
+                        {cat}*
+                      </span>
                     </td>
-                    {monthlyData.map(m=>(
-                      <td key={m.mo}>{m.btMap[bt]||"-"}</td>
-                    ))}
+                    {monthlyData.map(m=><td key={m.mo}>{m.mergedMap[cat]||"-"}</td>)}
                     <td style={{background:"#f8fafc",fontWeight:700}}>{rowTotal||"-"}</td>
                   </tr>
                 );
               })}
+              <tr><td colSpan={15} style={{background:"#f1f5f9",height:1,padding:0}}/></tr>
+              <tr>
+                <td style={{textAlign:"left",fontSize:9,color:"#94a3b8",padding:"4px 10px"}} colSpan={15}>
+                  * 신규=신규+네이버신규 / 기존=기존+네이버기존 / 단골=단골+네이버단골
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* 예약구분별 현황 */}
+      {/* ② 예약구분별 현황 - 통합 집계 + 네이버 세분화 */}
       <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>예약구분별 · {selYear}</div>
-        {BOOKING_TYPES.map(bt=>{
-          const btRecs=records.filter(r=>{
-            if(!r.date?.startsWith(String(selYear)))return false;
-            const c=getCustomer(r.customerId);return c?.bookingType===bt;
-          });
-          if(btRecs.length===0)return null;
-          const rev=btRecs.reduce((s,r)=>s+Number(r.amount),0);
-          const btc=BT[bt];
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
+          예약구분별 · {selYear}년 <span style={{fontSize:10,color:"#94a3b8",fontFamily:"'Noto Sans KR'"}}>(네이버+일반 통합)</span>
+        </div>
+
+        {/* 통합 집계 카드 */}
+        {mergedStats.filter(s=>s.count>0).map(({cat,count,rev,avg})=>{
+          const cc=CAT_COLOR[cat];
+          const maxCnt=Math.max(...mergedStats.map(s=>s.count),1);
           return(
-            <div key={bt} style={{borderRadius:10,padding:"10px 12px",marginBottom:8,background:btc.bg,border:`1px solid ${btc.border}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:12,fontWeight:700,color:btc.color}}>{bt}</span>
-                <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+            <div key={cat} style={{borderRadius:10,padding:"12px 14px",marginBottom:8,background:cc.bg,border:`1px solid ${cc.border}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <span style={{fontSize:13,fontWeight:700,color:cc.color}}>{cat}</span>
+                <span style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{formatKRW(rev)}</span>
               </div>
-              <div style={{fontSize:11,color:"#64748b",marginTop:3}}>{btRecs.length}건 · 객단가 {formatKRW(Math.round(rev/btRecs.length))}</div>
+              <div style={{height:5,background:"rgba(0,0,0,0.06)",borderRadius:3,marginBottom:6}}>
+                <div style={{height:5,background:cc.color,borderRadius:3,width:`${count/maxCnt*100}%`,opacity:0.7}}/>
+              </div>
+              <div style={{display:"flex",gap:12,fontSize:11,color:"#64748b"}}>
+                <span>{count}건</span>
+                <span>객단가 {formatKRW(avg)}</span>
+              </div>
             </div>
           );
         })}
+
+        {/* 네이버 세분화 섹션 */}
+        <div style={{marginTop:16,paddingTop:14,borderTop:"1px dashed #e2e8f0"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#15803d",marginBottom:10,letterSpacing:0.5}}>
+            🔍 네이버 고객 세분화 (방문횟수 기준)
+          </div>
+          {Object.entries(naverDetail).map(([grade,custs])=>{
+            const nc=NAVER_COLOR[grade];
+            const gradeRecs=yearRecs.filter(r=>custs.some(c=>c.id===r.customerId||c.id===String(r.customerId)));
+            const rev=gradeRecs.reduce((s,r)=>s+Number(r.amount),0);
+            const label=grade==="네이버신규"?"첫방문":grade==="네이버기존"?"2~5회":grade==="네이버단골"?"6회 이상":"";
+            return(
+              <div key={grade} style={{borderRadius:8,padding:"10px 12px",marginBottom:7,background:nc.bg,border:`1px solid ${nc.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <span style={{fontSize:12,fontWeight:700,color:nc.color}}>{grade}</span>
+                    <span style={{fontSize:10,color:"#64748b",marginLeft:6}}>{label}</span>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+                </div>
+                <div style={{fontSize:11,color:"#64748b",marginTop:4}}>
+                  고객 {custs.length}명 · {selYear}년 {gradeRecs.length}건
+                  {gradeRecs.length>0&&` · 객단가 ${formatKRW(Math.round(rev/gradeRecs.length))}`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* 작업내용 TOP 10 */}
+      {/* ③ 작업내용 TOP 10 */}
       <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
-          작업내용 TOP 10 · {selYear}
+          작업내용 TOP 10 · {selYear}년
         </div>
         {topSvcs.length===0?<div style={{fontSize:13,color:"#94a3b8"}}>데이터 없음</div>:
-        topSvcs.map(([svc,cnt])=>(
+        topSvcs.map(([svc,cnt],i)=>(
           <div key={svc} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#94a3b8",minWidth:18}}>{i+1}</span>
+                <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
+              </div>
               <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{cnt}건</span>
             </div>
             <div style={{height:6,background:"#f1f5f9",borderRadius:3}}>
-              <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${(cnt/maxSvc)*100}%`,transition:"width 0.5s"}}/>
+              <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${cnt/maxSvc*100}%`,transition:"width 0.5s"}}/>
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── 작업내용 검색 컴포넌트 ──────────────────────────────
+function ServiceSearch({services,setServices}){
+  const [input,setInput]=useState("");
+  const [showDrop,setShowDrop]=useState(false);
+  const inputRef=useRef(null);
+
+  // 입력어로 필터링된 자동완성 목록
+  const filtered=useMemo(()=>{
+    const q=input.trim().toLowerCase();
+    if(!q) return SERVICES.filter(s=>!services.includes(s)).slice(0,10);
+    return SERVICES.filter(s=>s.toLowerCase().includes(q)&&!services.includes(s));
+  },[input,services]);
+
+  function addService(s){
+    if(!s.trim()) return;
+    // SERVICES 목록에 있는 항목 또는 직접 입력 모두 허용
+    const target=SERVICES.find(sv=>sv.toLowerCase()===s.trim().toLowerCase())||s.trim();
+    if(!services.includes(target)) setServices(prev=>[...prev,target]);
+    setInput("");
+    setShowDrop(false);
+    inputRef.current?.focus();
+  }
+
+  function removeService(s){
+    setServices(prev=>prev.filter(x=>x!==s));
+  }
+
+  function onKeyDown(e){
+    if(e.key==="Enter"||e.key===","||e.key==="Tab"){
+      e.preventDefault();
+      if(input.trim()) addService(input);
+    }
+    if(e.key==="Backspace"&&!input&&services.length>0){
+      setServices(prev=>prev.slice(0,-1));
+    }
+  }
+
+  return(
+    <div>
+      {/* 선택된 항목 태그 + 입력창 */}
+      <div onClick={()=>{setShowDrop(true);inputRef.current?.focus();}}
+        style={{
+          minHeight:44,padding:"6px 10px",border:"1.5px solid #e2e8f0",borderRadius:10,
+          display:"flex",flexWrap:"wrap",gap:5,alignItems:"center",cursor:"text",
+          background:"#fff",transition:"border-color 0.15s",
+          borderColor:showDrop?"#1e293b":"#e2e8f0",
+        }}>
+        {services.map(s=>(
+          <span key={s} style={{
+            display:"inline-flex",alignItems:"center",gap:4,
+            background:"#1e293b",color:"#fff",fontSize:11,fontWeight:600,
+            padding:"3px 8px",borderRadius:6,
+          }}>
+            {s}
+            <button onClick={e=>{e.stopPropagation();removeService(s);}}
+              style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",
+                fontSize:13,lineHeight:1,padding:0,marginLeft:1,fontWeight:700}}>×</button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e=>{setInput(e.target.value);setShowDrop(true);}}
+          onKeyDown={onKeyDown}
+          onFocus={()=>setShowDrop(true)}
+          onBlur={()=>setTimeout(()=>setShowDrop(false),150)}
+          placeholder={services.length===0?"작업명 입력 (Enter 또는 , 로 추가)":""}
+          style={{flex:1,minWidth:120,border:"none",outline:"none",fontSize:12,
+            color:"#0f172a",background:"transparent",fontFamily:"'Noto Sans KR',sans-serif",padding:"2px 0"}}
+        />
+      </div>
+
+      {/* 자동완성 드롭다운 */}
+      {showDrop&&filtered.length>0&&(
+        <div style={{
+          border:"1px solid #e2e8f0",borderRadius:8,background:"#fff",
+          boxShadow:"0 4px 12px rgba(0,0,0,0.08)",marginTop:4,
+          maxHeight:180,overflowY:"auto",zIndex:20,position:"relative",
+        }}>
+          {filtered.map(s=>(
+            <div key={s}
+              onMouseDown={e=>{e.preventDefault();addService(s);}}
+              style={{padding:"8px 12px",fontSize:12,cursor:"pointer",color:"#334155",
+                borderBottom:"1px solid #f8fafc",fontWeight:500}}
+              onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+              onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+              {s}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 직접 입력 안내 */}
+      <div style={{fontSize:10,color:"#94a3b8",marginTop:5}}>
+        💡 목록에서 선택하거나 직접 입력 후 <strong>Enter</strong> 또는 <strong>,</strong> 로 추가. Backspace로 마지막 항목 삭제.
       </div>
     </div>
   );
@@ -1085,12 +1288,7 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
         )}
 
         <NF label="🔧 작업내용">
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {SERVICES.map(s=>(
-              <button key={s} onClick={()=>toggle(s)}
-                style={{...chip(services.includes(s)),padding:"5px 10px",fontSize:11}}>{s}</button>
-            ))}
-          </div>
+          <ServiceSearch services={services} setServices={setServices}/>
         </NF>
 
         <NF label="💰 가격">
@@ -1315,22 +1513,23 @@ function App(){
                 <button onClick={goNext} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#1e293b",padding:"0 6px",fontWeight:700}}>›</button>
               </div>
             </div>
-            {/* 범례 - 금액대별 + 지메닉 */}
-            <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+            {/* 범례 - 금액대별 (시간예약 + 종일 모두 동일 색상) */}
+            <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
               {[
                 ["~13만","#38bdf8","#e0f2fe"],
                 ["16~20만","#eab308","#fefce8"],
                 ["20~50만","#fde047","#fefce8"],
                 ["50만↑","#fb7185","#fff1f2"],
-                ["지메닉5만","#f97316","#fff7ed"],
+                ["지메닉","#f97316","#fff7ed"],
                 ["지메닉10만↑","#fdba74","#fff7ed"],
-                ["종일","#8b5cf6","#faf5ff"],
               ].map(([l,c,bg])=>(
-                <span key={l} style={{display:"flex",alignItems:"center",gap:3,fontSize:9,color:"#64748b",
-                  background:bg,padding:"2px 6px",borderRadius:4,border:`1px solid ${c}`,fontWeight:600,color:c}}>
+                <span key={l} style={{display:"inline-flex",alignItems:"center",gap:3,
+                  fontSize:9,background:bg,padding:"2px 7px",borderRadius:4,
+                  border:`1px solid ${c}`,fontWeight:700,color:c}}>
                   {l}
                 </span>
               ))}
+              <span style={{fontSize:9,color:"#94a3b8",marginLeft:2}}>종일도 동일 적용</span>
             </div>
 
             {/* PC 좌우 분할 */}
