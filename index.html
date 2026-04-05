@@ -139,8 +139,10 @@
     .tbl-wrap td.amt { font-weight:700; color:#1e293b; }
     .tbl-wrap td.mo  { font-weight:600; color:#475569; background:#f8fafc; }
     @media(min-width:768px){
-      .pc-split{display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start;}
+      .pc-split{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;}
       .pc-sticky{position:sticky;top:72px;}
+      /* PC에서 달력 셀 더 크게 */
+      .cal-cell-pc { min-height: 130px !important; }
     }
     @media(max-width:767px){ .pc-split{display:block;} }
   </style>
@@ -388,8 +390,17 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
-  const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "80px";
-  const GRID_W = isWeek ? "100%" : `calc(80px * 7 + 6px)`;
+  // PC에서는 셀을 더 크게
+  const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "100px";
+  const GRID_W = isWeek ? "100%" : `calc(100px * 7 + 6px)`;
+  // 셀 최소 높이 - PC/모바일 구분은 JS로 감지
+  const [isPC,setIsPC]=useState(window.innerWidth>=768);
+  useEffect(()=>{
+    const fn=()=>setIsPC(window.innerWidth>=768);
+    window.addEventListener("resize",fn);
+    return()=>window.removeEventListener("resize",fn);
+  },[]);
+  const CELL_H = isWeek ? (isPC?140:110) : (isPC?120:90);
 
   return(
     <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
@@ -405,18 +416,18 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
         </div>
 
         {/* 날짜 그리드 */}
-        <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,background:"#e2e8f0",
-          borderRadius:"0 0 10px 10px",overflow:"visible"}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,
+          background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
           {days.map((d,i)=>{
             if(!d)return(
-              <div key={`e${i}`} style={{background:"#f8fafc",minHeight:isWeek?110:90,width:CELL_W,boxSizing:"border-box"}}/>
+              <div key={`e${i}`} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
             );
             const ds=isWeek?d:`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
             const isToday=ds===todayStr(),isSel=ds===selectedDate;
-            // 새 구조: {allDay:[], time:[]}
             const dayData=calendarMap[ds]||{allDay:[],time:[]};
-            const allDayItems=dayData.allDay;  // 이미 중복 없음
-            const timeItems=dayData.time;       // 이미 중복 없음
+            // allDay, time 이미 중복 없이 분리 저장된 상태
+            const allDayItems=dayData.allDay;
+            const timeItems=dayData.time;
             const dow=new Date(ds).getDay();
             const displayDay=isWeek?Number(ds.slice(8)):d;
 
@@ -424,7 +435,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
               <div key={i} onClick={()=>onDatePopup(ds)}
                 style={{
                   background:isSel?"#1e293b":isToday?"#fffbeb":"#fff",
-                  minHeight:isWeek?110:90,
+                  minHeight:CELL_H,
                   width:CELL_W,
                   padding:"5px 4px",
                   cursor:"pointer",
@@ -434,9 +445,9 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                   overflow:"hidden",
                 }}>
 
-                {/* 날짜 숫자 + + 버튼 */}
+                {/* 날짜 + 버튼 */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
-                  <span style={{fontSize:isWeek?16:12,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
+                  <span style={{fontSize:isWeek?15:isPC?13:11,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
                     color:isSel?"#fff":isToday?"#d97706":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155"}}>
                     {isToday&&!isSel&&<span style={{fontSize:6,marginRight:2,color:"#f59e0b"}}>●</span>}
                     {displayDay}
@@ -448,31 +459,24 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                       justifyContent:"center",padding:0,flexShrink:0}}>+</button>
                 </div>
 
-                {/* ─────────────────────────────────────────
-                    종일/다일 바: 각 작업별로 독립 행 렌더링
-                    - 시작일: 고객명 표시, 왼쪽 테두리
-                    - 연속일: 빈 칸, 테두리 없음 (이어지는 느낌)
-                    - 마지막일: 오른쪽 테두리
-                ───────────────────────────────────────── */}
-                {allDayItems.map((item,ai)=>{
-                  const isFirst=item._isFirst;
-                  const isLast=item._isLast;
-                  const isSingle=item._spanTotal===1;
+                {/* 종일/다일 바 - allDay 배열에서 각 레코드별로 독립 행 */}
+                {allDayItems.map((item)=>{
+                  const isFirst=item._isFirst===true;
+                  const isLast=item._isLast===true;
+                  const isSingle=(item._spanTotal||1)===1;
                   const ac=amtColor(item.amount,item._bookingType);
                   return(
                     <div key={`all-${item.id}`}
                       style={{
-                        fontSize:9,fontWeight:700,
-                        padding:"2px 4px",
-                        marginBottom:2,
-                        // 연속 바 - 셀 패딩을 상쇄해서 이어지게
+                        fontSize:isPC?10:9,fontWeight:700,
+                        padding:"2px 4px",marginBottom:2,
                         marginLeft: isFirst||isSingle ? "0" : "-5px",
                         marginRight: isLast||isSingle ? "0" : "-5px",
-                        background: ac.bg,
-                        color: ac.text,
-                        borderTop:`1px solid ${ac.border}`,
-                        borderBottom:`1px solid ${ac.border}`,
-                        borderLeft: isFirst||isSingle ? `2px solid ${ac.border}` : "none",
+                        background:ac.bg,
+                        color:ac.text,
+                        borderTop:`1.5px solid ${ac.border}`,
+                        borderBottom:`1.5px solid ${ac.border}`,
+                        borderLeft: isFirst||isSingle ? `3px solid ${ac.border}` : "none",
                         borderRight: isLast||isSingle ? `1px solid ${ac.border}` : "none",
                         borderRadius: isSingle?"4px" : isFirst?"4px 0 0 4px" : isLast?"0 4px 4px 0" : "0",
                         whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
@@ -482,22 +486,19 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                   );
                 })}
 
-                {/* ─────────────────────────────────────────
-                    시간/추가 예약: 종일과 별개로 그 아래 표시
-                    종일 작업과 겹치지 않고 독립 렌더링
-                ───────────────────────────────────────── */}
-                {timeItems.map((r,ri)=>{
+                {/* 시간/추가 예약 - time 배열에서 독립 렌더링 */}
+                {timeItems.map((r)=>{
                   const ac=amtColor(r.amount,r._bookingType);
                   return(
                     <div key={`t-${r.id}`}
                       style={{
-                        fontSize:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
+                        fontSize:isPC?10:9,borderRadius:3,padding:"2px 4px",marginBottom:2,
                         background:ac.bg,
                         borderLeft:`2px solid ${ac.border}`,
                         whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
                         color:ac.text,fontWeight:600,
                       }}>
-                      <span style={{fontWeight:800,fontSize:8,marginRight:2,opacity:0.6}}>{r.slot}</span>
+                      <span style={{fontWeight:800,fontSize:isPC?9:8,marginRight:2,opacity:0.6}}>{r.slot}</span>
                       {r._custName||"예약"}
                     </div>
                   );
@@ -1675,36 +1676,40 @@ function App(){
   const calendarMap=useMemo(()=>{
     const map={};
 
+    const ensure=(d)=>{
+      if(!map[d]) map[d]={allDay:[],time:[]};
+    };
+
     records.forEach(r=>{
       const cust=customers.find(c=>c.id===r.customerId||c.id===String(r.customerId));
       const custName=cust?.name||cust?.phone||"";
       const custBT=cust?.bookingType||"";
+      const slot=String(r.slot||"").trim();
+      // multiDay: Firebase에서 숫자/문자열 모두 대응
+      const total=Math.max(1,parseInt(r.multiDay)||1);
 
-      if(r.slot==="종일"){
-        // 다일 작업: 각 날짜에 span 정보와 함께 1번만 push
-        const total=r.multiDay||1;
+      if(slot==="종일"){
+        // 다일 종일 작업: 각 날짜에 span 메타와 함께 저장
         spanDates(r.date,total).forEach((d,idx)=>{
-          if(!map[d]) map[d]={allDay:[],time:[]};
-          // 같은 레코드가 이미 있으면 skip (안전장치)
-          if(!map[d].allDay.find(x=>x.id===r.id)){
-            map[d].allDay.push({
-              ...r,
-              _spanIdx:idx,
-              _spanTotal:total,
-              _isFirst:idx===0,
-              _isLast:idx===total-1,
-              _custName:custName,
-              _bookingType:custBT,
-            });
-          }
+          ensure(d);
+          // 이미 같은 레코드 ID가 있으면 절대 추가 안 함
+          if(map[d].allDay.some(x=>x.id===r.id)) return;
+          map[d].allDay.push({
+            ...r,
+            _spanIdx:idx,
+            _spanTotal:total,
+            _isFirst:idx===0,
+            _isLast:idx===total-1,
+            _custName:custName,
+            _bookingType:custBT,
+          });
         });
       } else {
-        // 시간/추가 예약: 해당 날짜에만 push
+        // 시간/추가 예약 - 시작 날짜에만 저장
         const d=r.date;
-        if(!map[d]) map[d]={allDay:[],time:[]};
-        if(!map[d].time.find(x=>x.id===r.id)){
-          map[d].time.push({...r,_custName:custName,_bookingType:custBT});
-        }
+        ensure(d);
+        if(map[d].time.some(x=>x.id===r.id)) return;
+        map[d].time.push({...r,_custName:custName,_bookingType:custBT});
       }
     });
 
@@ -1825,6 +1830,26 @@ function App(){
                 ))}
                 <span style={{fontSize:9,color:"#94a3b8"}}>종일도 동일</span>
               </div>
+
+              {/* 🔍 종일 데이터 디버그 패널 - 문제 진단용 */}
+              {(()=>{
+                const jongil=records.filter(r=>String(r.slot||"").trim()==="종일");
+                if(!jongil.length) return null;
+                return(
+                  <details style={{marginBottom:10,background:"#fef9c3",borderRadius:8,padding:"8px 12px",border:"1px solid #fde047",fontSize:11}}>
+                    <summary style={{cursor:"pointer",fontWeight:700,color:"#92400e"}}>
+                      🔍 종일 레코드 디버그 ({jongil.length}건) - 겹침 문제 진단용 (클릭해서 확인)
+                    </summary>
+                    <div style={{marginTop:8,maxHeight:200,overflowY:"auto"}}>
+                      {jongil.map(r=>(
+                        <div key={r.id} style={{padding:"4px 0",borderBottom:"1px solid #fde047",fontSize:10,color:"#1e293b"}}>
+                          <strong>id:</strong>{r.id} | <strong>date:</strong>{r.date} | <strong>slot:</strong>"{r.slot}" | <strong>multiDay:</strong>{r.multiDay}({typeof r.multiDay}) | <strong>cust:</strong>{r.customerId}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })()}
               <div className="pc-split">
                 <div>
                   <div style={{borderRadius:12,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",marginBottom:14,border:"1px solid #e2e8f0"}}>
