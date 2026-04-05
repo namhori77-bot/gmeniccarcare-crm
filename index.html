@@ -403,10 +403,8 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
-  // PC에서는 셀을 더 크게
   const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "100px";
   const GRID_W = isWeek ? "100%" : `calc(100px * 7 + 6px)`;
-  // 셀 최소 높이 - PC/모바일 구분은 JS로 감지
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
   useEffect(()=>{
     const fn=()=>setIsPC(window.innerWidth>=768);
@@ -414,6 +412,8 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
     return()=>window.removeEventListener("resize",fn);
   },[]);
   const CELL_H = isWeek ? (isPC?140:110) : (isPC?120:90);
+  const CELL_PX = isPC ? 100 : 48; // 픽셀 단위 셀 너비 (종일 바 계산용)
+  const GAP_PX = 1;
 
   return(
     <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
@@ -430,7 +430,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
 
         {/* 날짜 그리드 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,
-          background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
+          background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"visible"}}>
           {days.map((d,i)=>{
             if(!d)return(
               <div key={`e${i}`} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
@@ -472,7 +472,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                       justifyContent:"center",padding:0,flexShrink:0}}>+</button>
                 </div>
 
-                {/* 종일/다일 바 - overflow:visible 셀에서 인접 셀로 확장 */}
+                {/* 종일 바: 각 셀에서 독립 렌더, border로 연결감 표현 */}
                 {allDayItems.map((item,rowIdx)=>{
                   const isFirst=item._isFirst===true;
                   const isLast=item._isLast===true;
@@ -482,10 +482,14 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                     <div key={`all-${item.id}-${rowIdx}`}
                       style={{
                         fontSize:isPC?10:9,fontWeight:700,
-                        padding:"2px 4px",marginBottom:2,
-                        // 연속 바: 셀 gap(1px)을 넘어 인접 셀과 이어지도록 확장
-                        marginLeft: isFirst||isSingle ? 0 : -6,
-                        marginRight: isLast||isSingle ? 0 : -6,
+                        marginBottom:2,
+                        // 시작셀: 정상 padding, 중간/끝: 왼쪽 padding 0 (끊김 없이 이어지는 느낌)
+                        paddingTop:2,paddingBottom:2,
+                        paddingLeft: isFirst||isSingle ? 6 : 0,
+                        paddingRight: isLast||isSingle ? 4 : 0,
+                        // 셀 끝까지 꽉 채우기 위해 음수 margin으로 내부 여백 제거
+                        marginLeft: isFirst||isSingle ? 0 : -7,
+                        marginRight: isLast||isSingle ? 0 : -7,
                         background:ac.bg,
                         color:ac.text,
                         borderTop:`1.5px solid ${ac.border}`,
@@ -494,7 +498,6 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                         borderRight: isLast||isSingle ? `1.5px solid ${ac.border}` : "none",
                         borderRadius: isSingle?4 : isFirst?"4px 0 0 4px" : isLast?"0 4px 4px 0" : 0,
                         whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-                        position:"relative",zIndex:1,
                         minHeight:isPC?16:14,lineHeight:isPC?"16px":"14px",
                       }}>
                       {isFirst||isSingle ? (item._custName||"종일") : "\u00A0"}
@@ -2105,20 +2108,11 @@ function App(){
                             <div style={{fontSize:12,color:"#475569",marginTop:2}}>{rec.carModel||(cust.cars||[])[0]||""} · {(rec.services||[]).join(", ")}</div>
                             <div style={{fontSize:13,color:"#1e293b",fontWeight:700,marginTop:4}}>{formatKRW(rec.amount)} · {rec.payment}</div>
                           </>
-                        ):(
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",padding:"2px 8px",borderRadius:6}}>◆ 종일</span>
-                            <span style={{color:"#94a3b8",fontSize:12}}>+ 종일 / 장기 작업 등록</span>
-                          </div>
-                        )}
+                        ):null}
                       </div>
                     );
                   })()}
-                  <div style={{display:"flex",alignItems:"center",margin:"8px 0",gap:6}}>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                    <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>TIME SLOTS</span>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                  </div>
+
                   {TIME_SLOTS.map(slot=>{
                     const ss=SC_STYLE[slot];
                     const rec=records.filter(r=>r.date===selDate&&r.slot===slot)[0]||null;
@@ -2151,11 +2145,7 @@ function App(){
                       </div>
                     );
                   })}
-                  <div style={{display:"flex",alignItems:"center",margin:"10px 0 8px",gap:6}}>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                    <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>추가 작업</span>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                  </div>
+
                   {records.filter(r=>r.date===selDate&&r.slot==="추가").map(rec=>{
                     const cust=getCustomer(rec.customerId);
                     const ac=amtColor(rec.amount,cust?.bookingType);
@@ -2174,11 +2164,7 @@ function App(){
                       </div>
                     );
                   })}
-                  <button onClick={()=>setBookingModal({date:selDate,slot:"추가",record:null})}
-                    style={{width:"100%",background:"#f8fafc",border:"1.5px dashed #cbd5e1",borderRadius:12,
-                      padding:"10px",fontSize:12,color:"#94a3b8",cursor:"pointer",fontWeight:600,textAlign:"center"}}>
-                    ＋ 작업세차 / 응급 추가 기록
-                  </button>
+
                 </div>
               </div>
             </div>

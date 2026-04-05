@@ -113,7 +113,6 @@
     /* 햄버거 버튼 - PC에선 숨김 */
     .mobile-menu-btn { display: none; }
 
-    /* 모바일 플로팅 빠른예약 버튼 (FAB) */
     .fab-quick {
       display: none;
       position: fixed; bottom: 24px; right: 20px; z-index: 90;
@@ -122,9 +121,9 @@
       color: #fff; font-size: 24px; border: none; cursor: pointer;
       box-shadow: 0 6px 20px rgba(99,102,241,0.5);
       align-items: center; justify-content: center;
-      transition: transform 0.15s, box-shadow 0.15s;
+      transition: transform 0.15s;
     }
-    .fab-quick:active { transform: scale(0.91); box-shadow: 0 3px 10px rgba(99,102,241,0.4); }
+    .fab-quick:active { transform: scale(0.91); }
 
     /* 모바일 */
     @media(max-width:767px){
@@ -404,10 +403,8 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
-  // PC에서는 셀을 더 크게
   const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "100px";
   const GRID_W = isWeek ? "100%" : `calc(100px * 7 + 6px)`;
-  // 셀 최소 높이 - PC/모바일 구분은 JS로 감지
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
   useEffect(()=>{
     const fn=()=>setIsPC(window.innerWidth>=768);
@@ -415,6 +412,8 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
     return()=>window.removeEventListener("resize",fn);
   },[]);
   const CELL_H = isWeek ? (isPC?140:110) : (isPC?120:90);
+  const CELL_PX = isPC ? 100 : 48; // 픽셀 단위 셀 너비 (종일 바 계산용)
+  const GAP_PX = 1;
 
   return(
     <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
@@ -431,7 +430,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
 
         {/* 날짜 그리드 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,
-          background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
+          background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"visible"}}>
           {days.map((d,i)=>{
             if(!d)return(
               <div key={`e${i}`} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
@@ -456,11 +455,11 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                   borderTop:isSel?"2px solid #1e293b":isToday?"2px solid #f59e0b":"2px solid transparent",
                   transition:"background 0.1s",
                   boxSizing:"border-box",
-                  overflow:"hidden",
+                  overflow:"visible",
                 }}>
 
                 {/* 날짜 + 버튼 */}
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3,position:"relative",zIndex:2}}>
                   <span style={{fontSize:isWeek?15:isPC?13:11,fontWeight:700,fontFamily:"'Bebas Neue',sans-serif",
                     color:isSel?"#fff":isToday?"#d97706":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155"}}>
                     {isToday&&!isSel&&<span style={{fontSize:6,marginRight:2,color:"#f59e0b"}}>●</span>}
@@ -473,35 +472,35 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                       justifyContent:"center",padding:0,flexShrink:0}}>+</button>
                 </div>
 
-                {/* 종일/다일 바 - 레코드별 독립 행, 여러 레코드 겹침 없이 스택 */}
+                {/* 종일 바: 각 셀에서 독립 렌더, border로 연결감 표현 */}
                 {allDayItems.map((item,rowIdx)=>{
-                  // 이 날짜에서의 위치
                   const isFirst=item._isFirst===true;
                   const isLast=item._isLast===true;
                   const isSingle=(item._spanTotal||1)===1;
                   const ac=amtColor(item.amount,item._bookingType);
-                  // 이 날짜에서 이름 표시: 시작일 OR 이 날짜가 해당 행의 첫 셀
-                  const showName=isFirst||isSingle;
                   return(
                     <div key={`all-${item.id}-${rowIdx}`}
                       style={{
                         fontSize:isPC?10:9,fontWeight:700,
-                        padding:"2px 4px",marginBottom:2,
-                        // 연속 바 시각 표현: 시작/끝에서만 마진 0, 중간은 -4px 확장
-                        marginLeft: isFirst||isSingle ? "0" : "-4px",
-                        marginRight: isLast||isSingle ? "0" : "-4px",
+                        marginBottom:2,
+                        // 시작셀: 정상 padding, 중간/끝: 왼쪽 padding 0 (끊김 없이 이어지는 느낌)
+                        paddingTop:2,paddingBottom:2,
+                        paddingLeft: isFirst||isSingle ? 6 : 0,
+                        paddingRight: isLast||isSingle ? 4 : 0,
+                        // 셀 끝까지 꽉 채우기 위해 음수 margin으로 내부 여백 제거
+                        marginLeft: isFirst||isSingle ? 0 : -7,
+                        marginRight: isLast||isSingle ? 0 : -7,
                         background:ac.bg,
                         color:ac.text,
                         borderTop:`1.5px solid ${ac.border}`,
                         borderBottom:`1.5px solid ${ac.border}`,
                         borderLeft: isFirst||isSingle ? `3px solid ${ac.border}` : "none",
                         borderRight: isLast||isSingle ? `1.5px solid ${ac.border}` : "none",
-                        borderRadius: isSingle?"4px" : isFirst?"4px 0 0 4px" : isLast?"0 4px 4px 0" : "0",
+                        borderRadius: isSingle?4 : isFirst?"4px 0 0 4px" : isLast?"0 4px 4px 0" : 0,
                         whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-                        // 각 행이 명확히 분리되도록 최소 높이 보장
                         minHeight:isPC?16:14,lineHeight:isPC?"16px":"14px",
                       }}>
-                      {showName ? (item._custName||"종일") : " "}
+                      {isFirst||isSingle ? (item._custName||"종일") : "\u00A0"}
                     </div>
                   );
                 })}
@@ -1231,7 +1230,7 @@ function ServiceSearch({services,setServices}){
   );
 }
 
-// ── 빠른 예약 모달 (통화 후 즉시 입력용) ──────────────
+// ── 빠른 예약 모달 ──────────────────────────────────────
 function QuickBookModal({customers,onSave,onClose}){
   const [step,setStep]=useState(1);
   const [query,setQuery]=useState("");
@@ -1243,7 +1242,6 @@ function QuickBookModal({customers,onSave,onClose}){
   const [payment,setPayment]=useState("카드");
   const [memo,setMemo]=useState("");
 
-  // ESC 닫기
   useEffect(()=>{
     const h=e=>{if(e.key==="Escape")onClose();};
     document.addEventListener("keydown",h);
@@ -1259,12 +1257,10 @@ function QuickBookModal({customers,onSave,onClose}){
     }).slice(0,6);
   },[query,customers]);
 
-
   function handleSave(){
     if(!selCust||!services.length||!amount)return alert("고객·작업내용·금액을 입력해주세요.");
     onSave({
-      customerId:String(selCust.id),
-      date,slot,multiDay:1,
+      customerId:String(selCust.id),date,slot,multiDay:1,
       services,payment,
       amount:Number(String(amount).replace(/[^\d]/g,"")),
       memo,carModel:selCust.cars?.[0]||"",
@@ -1277,13 +1273,11 @@ function QuickBookModal({customers,onSave,onClose}){
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",zIndex:300,
-      display:"flex",alignItems:"flex-end",justifyContent:"center"}}
-      onClick={onClose}>
+      display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
       <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,
         boxShadow:"0 -8px 32px rgba(0,0,0,0.2)",maxHeight:"92vh",display:"flex",flexDirection:"column"}}
         onClick={e=>e.stopPropagation()}>
 
-        {/* 핸들 + 헤더 */}
         <div style={{padding:"12px 18px 10px",borderBottom:"1px solid #f1f5f9",flexShrink:0}}>
           <div style={{width:36,height:3,background:"#6366f1",borderRadius:2,margin:"0 auto 12px"}}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1294,9 +1288,8 @@ function QuickBookModal({customers,onSave,onClose}){
             <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:8,
               padding:"6px 10px",fontSize:16,cursor:"pointer",color:"#64748b"}}>✕</button>
           </div>
-          {/* 스텝 인디케이터 */}
-          <div style={{display:"flex",gap:6,marginTop:12}}>
-            {[{n:1,l:"고객"},{n:2,l:"예약 정보"}].map(({n,l})=>(
+          <div style={{display:"flex",gap:6,marginTop:10}}>
+            {[1,2].map(n=>(
               <div key={n} style={{flex:1,height:3,borderRadius:2,
                 background:step>=n?"#6366f1":"#e2e8f0",transition:"background 0.2s"}}/>
             ))}
@@ -1304,16 +1297,11 @@ function QuickBookModal({customers,onSave,onClose}){
         </div>
 
         <div style={{overflowY:"auto",padding:"16px 18px",flex:1}}>
-
-          {/* STEP 1: 고객 검색 */}
           {step===1&&(
             <div>
-              <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8}}>
-                👤 고객 검색 (전화번호 뒷자리 또는 이름)
-              </div>
+              <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8}}>👤 고객 검색</div>
               <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
-                placeholder="예: 4051 또는 홍길동"
-                style={iStyle}/>
+                placeholder="전화번호 뒷자리 또는 이름" style={iStyle}/>
               <div style={{marginTop:8}}>
                 {results.map(c=>{
                   const btc=BT[c.bookingType]||BT["신규"];
@@ -1321,8 +1309,7 @@ function QuickBookModal({customers,onSave,onClose}){
                     <div key={c.id} onClick={()=>{setSelCust(c);setStep(2);}}
                       style={{display:"flex",justifyContent:"space-between",alignItems:"center",
                         padding:"11px 14px",borderRadius:10,marginBottom:6,
-                        background:"#f8fafc",border:"1px solid #e2e8f0",cursor:"pointer",
-                        transition:"background 0.1s"}}
+                        background:"#f8fafc",border:"1px solid #e2e8f0",cursor:"pointer"}}
                       onMouseEnter={e=>e.currentTarget.style.background="#ede9fe"}
                       onMouseLeave={e=>e.currentTarget.style.background="#f8fafc"}>
                       <div>
@@ -1331,7 +1318,7 @@ function QuickBookModal({customers,onSave,onClose}){
                         <div style={{fontSize:11,color:"#94a3b8"}}>{(c.cars||[]).join(", ")||"차종없음"}</div>
                       </div>
                       <span style={{fontSize:10,fontWeight:700,background:btc.bg,color:btc.color,
-                        padding:"2px 8px",borderRadius:6,border:`1px solid ${btc.border}`,flexShrink:0}}>{c.bookingType}</span>
+                        padding:"2px 8px",borderRadius:6,border:`1px solid ${btc.border}`}}>{c.bookingType}</span>
                     </div>
                   );
                 })}
@@ -1349,10 +1336,8 @@ function QuickBookModal({customers,onSave,onClose}){
             </div>
           )}
 
-          {/* STEP 2: 예약 정보 입력 */}
           {step===2&&selCust&&(
             <div>
-              {/* 선택된 고객 배너 */}
               <div style={{background:"linear-gradient(135deg,#1e293b,#334155)",borderRadius:12,
                 padding:"12px 14px",marginBottom:16,
                 display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1366,13 +1351,11 @@ function QuickBookModal({customers,onSave,onClose}){
                     borderRadius:7,padding:"5px 11px",fontSize:11,cursor:"pointer",fontWeight:600}}>변경</button>
               </div>
 
-              {/* 날짜 */}
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>📅 날짜</div>
                 <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={iStyle}/>
               </div>
 
-              {/* 시간 슬롯 */}
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>⏰ 시간</div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -1383,8 +1366,7 @@ function QuickBookModal({customers,onSave,onClose}){
                       <button key={s} onClick={()=>setSlot(s)}
                         style={{padding:"8px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
                           border:`1.5px solid ${active?ss.border:"#e2e8f0"}`,
-                          background:active?ss.bg:"#fff",color:active?ss.text:"#94a3b8",
-                          transition:"all 0.15s"}}>
+                          background:active?ss.bg:"#fff",color:active?ss.text:"#94a3b8",transition:"all 0.15s"}}>
                         {s==="종일"?"◆ 종일":s}
                       </button>
                     );
@@ -1392,15 +1374,11 @@ function QuickBookModal({customers,onSave,onClose}){
                 </div>
               </div>
 
-              {/* 작업내용 - BookingModal과 동일한 ServiceSearch 사용 */}
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>
-                  🔧 작업내용
-                </div>
+                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>🔧 작업내용</div>
                 <ServiceSearch services={services} setServices={setServices}/>
               </div>
 
-              {/* 금액 */}
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>💰 금액</div>
                 <input type="number" value={amount} onChange={e=>setAmount(e.target.value)}
@@ -1411,8 +1389,7 @@ function QuickBookModal({customers,onSave,onClose}){
                       style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",
                         background:amount===String(n)?"#1e293b":"#f1f5f9",
                         color:amount===String(n)?"#fff":"#475569",
-                        border:`1px solid ${amount===String(n)?"#1e293b":"#e2e8f0"}`,fontWeight:600,
-                        transition:"all 0.12s"}}>
+                        border:`1px solid ${amount===String(n)?"#1e293b":"#e2e8f0"}`,fontWeight:600}}>
                       {(n/10000).toFixed(0)}만
                     </button>
                   ))}
@@ -1422,7 +1399,6 @@ function QuickBookModal({customers,onSave,onClose}){
                 </div>}
               </div>
 
-              {/* 결제 */}
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>💳 결제</div>
                 <div style={{display:"flex",gap:8}}>
@@ -1431,26 +1407,23 @@ function QuickBookModal({customers,onSave,onClose}){
                       style={{flex:1,padding:"10px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",
                         border:`1.5px solid ${payment===p?"#1e293b":"#e2e8f0"}`,
                         background:payment===p?"#1e293b":"#fff",
-                        color:payment===p?"#fff":"#94a3b8",
-                        transition:"all 0.15s"}}>
+                        color:payment===p?"#fff":"#94a3b8",transition:"all 0.15s"}}>
                       {p}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 메모 */}
               <div style={{marginBottom:18}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>📝 메모 (선택)</div>
                 <input value={memo} onChange={e=>setMemo(e.target.value)}
                   placeholder="특이사항..." style={iStyle}/>
               </div>
 
-              {/* 저장 */}
               <button onClick={handleSave}
                 style={{width:"100%",padding:"14px",background:"linear-gradient(135deg,#6366f1,#4f46e5)",
                   color:"#fff",border:"none",borderRadius:12,fontSize:15,fontWeight:800,
-                  cursor:"pointer",letterSpacing:0.5,boxShadow:"0 4px 14px rgba(99,102,241,0.4)"}}>
+                  cursor:"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.4)"}}>
                 ✅ 예약 등록
               </button>
             </div>
@@ -1900,28 +1873,14 @@ function App(){
 
   function goPrev(){
     if(view==="week"){setSelDate(d=>addDays(d,-7));return;}
-    // 전반 ← : 이전달 후반으로
-    if(view==="first"){
-      setView("second");
-      if(calM===0){setCalY(y=>y-1);setCalM(11);}else setCalM(m=>m-1);
-      return;
-    }
-    // 후반 ← : 같은달 전반으로
+    if(view==="first"){setView("second");if(calM===0){setCalY(y=>y-1);setCalM(11);}else setCalM(m=>m-1);return;}
     if(view==="second"){setView("first");return;}
-    // 월간 ← : 이전달
     if(calM===0){setCalY(y=>y-1);setCalM(11);}else setCalM(m=>m-1);
   }
   function goNext(){
     if(view==="week"){setSelDate(d=>addDays(d,7));return;}
-    // 전반 → : 같은달 후반으로
     if(view==="first"){setView("second");return;}
-    // 후반 → : 다음달 전반으로
-    if(view==="second"){
-      setView("first");
-      if(calM===11){setCalY(y=>y+1);setCalM(0);}else setCalM(m=>m+1);
-      return;
-    }
-    // 월간 → : 다음달
+    if(view==="second"){setView("first");if(calM===11){setCalY(y=>y+1);setCalM(0);}else setCalM(m=>m+1);return;}
     if(calM===11){setCalY(y=>y+1);setCalM(0);}else setCalM(m=>m+1);
   }
 
@@ -1946,37 +1905,26 @@ function App(){
       if(!map[d]) map[d]={allDay:[],time:[]};
     };
 
-    // 종일 레코드: 전역 seen으로 날짜별 중복 완전 차단
-    // 같은 r.id + 같은 날짜 조합이 절대 중복 push 안 됨
-    const seenAllDay=new Set(); // "id:날짜" 조합 키로 관리
-
+    const seenAllDay=new Set();
     records.forEach(r=>{
       const cust=customers.find(c=>c.id===r.customerId||c.id===String(r.customerId));
       const custName=cust?.name||cust?.phone||"";
       const custBT=cust?.bookingType||"";
       const slot=String(r.slot||"").trim();
-      // multiDay: Firebase에서 숫자/문자열 모두 대응 (string/number 혼용)
       const total=Math.max(1,parseInt(r.multiDay)||1);
-      // r.id 안전 처리 - undefined면 date+customerId로 임시 키 생성
-      const rid=r.id!==undefined&&r.id!==null&&r.id!==""
-        ?String(r.id)
-        :`${r.date}_${r.customerId}_${slot}`;
+      const rid=(r.id!==undefined&&r.id!==null&&r.id!=="")?String(r.id):`${r.date}_${r.customerId}_${slot}`;
 
       if(slot==="종일"){
         spanDates(r.date,total).forEach((d,idx)=>{
           ensure(d);
-          const seenKey=`${rid}::${d}`;
-          if(seenAllDay.has(seenKey)) return; // 전역 중복 차단
-          seenAllDay.add(seenKey);
+          const key=`${rid}::${d}`;
+          if(seenAllDay.has(key)) return;
+          seenAllDay.add(key);
           map[d].allDay.push({
-            ...r,
-            id:rid, // 안전한 id 보장
-            _spanIdx:idx,
-            _spanTotal:total,
-            _isFirst:idx===0,
-            _isLast:idx===total-1,
-            _custName:custName,
-            _bookingType:custBT,
+            ...r,id:rid,
+            _spanIdx:idx,_spanTotal:total,
+            _isFirst:idx===0,_isLast:idx===total-1,
+            _custName:custName,_bookingType:custBT,
           });
         });
       } else {
@@ -2109,8 +2057,6 @@ function App(){
                 ))}
                 <span style={{fontSize:9,color:"#94a3b8"}}>종일도 동일</span>
               </div>
-
-
               <div className="pc-split">
                 <div>
                   <div style={{borderRadius:12,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",marginBottom:14,border:"1px solid #e2e8f0"}}>
@@ -2162,20 +2108,11 @@ function App(){
                             <div style={{fontSize:12,color:"#475569",marginTop:2}}>{rec.carModel||(cust.cars||[])[0]||""} · {(rec.services||[]).join(", ")}</div>
                             <div style={{fontSize:13,color:"#1e293b",fontWeight:700,marginTop:4}}>{formatKRW(rec.amount)} · {rec.payment}</div>
                           </>
-                        ):(
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <span style={{fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",padding:"2px 8px",borderRadius:6}}>◆ 종일</span>
-                            <span style={{color:"#94a3b8",fontSize:12}}>+ 종일 / 장기 작업 등록</span>
-                          </div>
-                        )}
+                        ):null}
                       </div>
                     );
                   })()}
-                  <div style={{display:"flex",alignItems:"center",margin:"8px 0",gap:6}}>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                    <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>TIME SLOTS</span>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                  </div>
+
                   {TIME_SLOTS.map(slot=>{
                     const ss=SC_STYLE[slot];
                     const rec=records.filter(r=>r.date===selDate&&r.slot===slot)[0]||null;
@@ -2208,11 +2145,7 @@ function App(){
                       </div>
                     );
                   })}
-                  <div style={{display:"flex",alignItems:"center",margin:"10px 0 8px",gap:6}}>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                    <span style={{fontSize:9,fontWeight:700,color:"#cbd5e1",letterSpacing:1,fontFamily:"'Bebas Neue',sans-serif"}}>추가 작업</span>
-                    <div style={{flex:1,height:1,background:"#e2e8f0"}}/>
-                  </div>
+
                   {records.filter(r=>r.date===selDate&&r.slot==="추가").map(rec=>{
                     const cust=getCustomer(rec.customerId);
                     const ac=amtColor(rec.amount,cust?.bookingType);
@@ -2231,11 +2164,7 @@ function App(){
                       </div>
                     );
                   })}
-                  <button onClick={()=>setBookingModal({date:selDate,slot:"추가",record:null})}
-                    style={{width:"100%",background:"#f8fafc",border:"1.5px dashed #cbd5e1",borderRadius:12,
-                      padding:"10px",fontSize:12,color:"#94a3b8",cursor:"pointer",fontWeight:600,textAlign:"center"}}>
-                    ＋ 작업세차 / 응급 추가 기록
-                  </button>
+
                 </div>
               </div>
             </div>
@@ -2266,12 +2195,9 @@ function App(){
         </div>
       </div>
 
-      {/* 모바일 플로팅 빠른예약 버튼 (FAB) */}
       <button className="fab-quick" onClick={()=>setQuickBook(true)} title="빠른 예약">⚡</button>
-
       {quickBook&&(
-        <QuickBookModal
-          customers={customers}
+        <QuickBookModal customers={customers}
           onSave={async d=>{await saveRecord(d);setQuickBook(false);}}
           onClose={()=>setQuickBook(false)}/>
       )}
