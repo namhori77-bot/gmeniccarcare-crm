@@ -1230,22 +1230,54 @@ function WeatherAnalysis({records, selYear}){
     setStatus("loading");
     setErrMsg("");
     try{
-      // 연도 목록 추출
       const sy = parseInt(startDate.slice(0,4));
       const ey = parseInt(endDate.slice(0,4));
       const merged = {};
 
       for(let y = sy; y <= ey; y++){
         const s = y === sy ? startDate : `${y}-01-01`;
-        const e = y === ey ? endDate   : `${y}-12-31`;
-        const url = `https://archive-api.open-meteo.com/v1/archive`
+        // 미래 날짜 제외: 오늘 이후는 요청 안 함
+        const today = new Date().toISOString().slice(0,10);
+        const eRaw = y === ey ? endDate : `${y}-12-31`;
+        const e = eRaw > today ? today : eRaw;
+        if(s > e) continue; // 범위 없으면 skip
+
+        // AbortController 방식 (구형 브라우저 호환)
+        const controller = new AbortController();
+        const timer = setTimeout(()=>controller.abort(), 15000);
+
+        // Open-Meteo 공식 archive API (2024년 이후 변경된 엔드포인트)
+        const url = `https://historical-forecast-api.open-meteo.com/v1/forecast`
           + `?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}`
           + `&start_date=${s}&end_date=${e}`
           + `&daily=precipitation_sum&timezone=Asia%2FSeoul`;
 
-        const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+        let res, json;
+        try{
+          res = await fetch(url, {signal: controller.signal});
+          clearTimeout(timer);
+          if(!res.ok) throw new Error(`HTTP ${res.status}`);
+          json = await res.json();
+        } catch(fetchErr){
+          clearTimeout(timer);
+          // fallback: 구 archive API 시도
+          const urlFallback = `https://archive-api.open-meteo.com/v1/archive`
+            + `?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}`
+            + `&start_date=${s}&end_date=${e}`
+            + `&daily=precipitation_sum&timezone=Asia%2FSeoul`;
+          const ctrl2 = new AbortController();
+          const timer2 = setTimeout(()=>ctrl2.abort(), 15000);
+          try{
+            res = await fetch(urlFallback, {signal: ctrl2.signal});
+            clearTimeout(timer2);
+            if(!res.ok) throw new Error(`HTTP ${res.status}`);
+            json = await res.json();
+          } catch(e2){
+            clearTimeout(timer2);
+            throw fetchErr; // 원래 에러 던지기
+          }
+        }
+
         const times = json?.daily?.time ?? [];
         const precs = json?.daily?.precipitation_sum ?? [];
         times.forEach((d,i)=>{
@@ -1997,6 +2029,7 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
   const isAD=modal.slot==="종일";
   const isExtra=modal.slot==="추가";
   const ex=modal.record;
+  const [editDate,setEditDate]=useState(ex?.date||modal.date); // 날짜 수정 가능
   const [slotType,setSlotType]=useState(isAD?"종일":isExtra?"추가":"시간");
   const [slotTime,setSlotTime]=useState(isAD||isExtra?null:(ex?.slot||modal.slot));
   const [multiDay,setMultiDay]=useState(Number(ex?.multiDay)||1);
@@ -2039,7 +2072,7 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
     if(!custId||!services.length||!amount)return alert("고객, 작업내용, 가격을 입력해주세요.");
     const fs=slotType==="종일"?"종일":slotType==="추가"?"추가":slotTime;
     if(slotType==="시간"&&!fs)return alert("시간을 선택해주세요.");
-    onSave({id:ex?.id,customerId:String(custId),date:modal.date,slot:fs,multiDay:slotType==="종일"?multiDay:1,services,payment,amount:Number(amount),memo,carModel:selectedCar,bookingType});
+    onSave({id:ex?.id,customerId:String(custId),date:editDate,slot:fs,multiDay:slotType==="종일"?multiDay:1,services,payment,amount:Number(amount),memo,carModel:selectedCar,bookingType});
   }
 
   const iStyle={width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",background:"#fff",color:"#0f172a",fontFamily:"'Noto Sans KR',sans-serif"};
@@ -2055,7 +2088,13 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
         </div>
 
         <NF label="📅 예약날짜">
-          <div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{modal.date.replace(/-/g,".")} · {WD(modal.date)}</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}
+              style={{flex:1,padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,
+                fontSize:14,fontWeight:700,color:"#1e293b",background:"#fff",
+                fontFamily:"'Noto Sans KR',sans-serif",boxSizing:"border-box"}}/>
+            <span style={{fontSize:13,color:"#64748b",flexShrink:0}}>{WD(editDate)}요일</span>
+          </div>
         </NF>
 
         <NF label="⏰ 예약시간">
@@ -2082,7 +2121,7 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
                 ))}
               </div>
               {multiDay>1&&<div style={{background:"#fef2f2",borderRadius:7,padding:"7px 10px",fontSize:11,color:"#dc2626",fontWeight:600,marginTop:8,border:"1px solid #fecaca"}}>
-                {modal.date.replace(/-/g,".")}({WD(modal.date)}) ~ {addDays(modal.date,multiDay-1).replace(/-/g,".")}({WD(addDays(modal.date,multiDay-1))}) · {multiDay}일
+                {editDate.replace(/-/g,".")}({WD(editDate)}) ~ {addDays(editDate,multiDay-1).replace(/-/g,".")}({WD(addDays(editDate,multiDay-1))}) · {multiDay}일
               </div>}
             </div>
           )}
