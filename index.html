@@ -154,10 +154,20 @@
     @media(min-width:768px){
       .pc-split{display:grid;grid-template-columns:1fr 320px;gap:12px;align-items:start;}
       .pc-sticky{position:sticky;top:72px;}
+      /* PC 캘린더 셀 높이 CSS 강제 */
+      @media(min-width:768px){
+        .cal-cell-month { min-height: calc((100vh - 210px) / 5) !important; }
+        .cal-cell-week  { min-height: calc((100vh - 210px) * 0.85) !important; }
+      }
       /* PC에서 달력 셀 더 크게 */
       .cal-cell-pc { min-height: 130px !important; }
     }
-    @media(max-width:767px){ .pc-split{display:block;} .cust-grid{grid-template-columns:1fr!important;} }
+    @media(max-width:767px){
+      .pc-split{display:block;}
+      .cust-grid{grid-template-columns:1fr!important;gap:4px!important;}
+      .cust-grid > div{padding:7px 10px!important;border-radius:8px!important;}
+      .analytics-3col{grid-template-columns:1fr!important;gap:8px!important;}
+    }
   </style>
 </head>
 <body>
@@ -416,9 +426,8 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
   // 상단 오프셋: 탭헤더72 + 뷰선택40 + 범례30 + 여백 = 약 160px
   const weekCount = isWeek ? 1 : Math.ceil(days.length / 7);
   const vhOffset = 164; // 상단 UI 합계 (px)
-  const CELL_H = isWeek
-    ? (isPC ? Math.max(140, Math.floor((window.innerHeight - vhOffset) * 0.88)) : 110)
-    : (isPC ? Math.max(100, Math.floor((window.innerHeight - vhOffset) / weekCount)) : 90);
+  // JS 계산은 모바일 fallback용 (PC는 CSS calc로 override)
+  const CELL_H = isWeek ? 110 : 90; // 모바일 기준값
   const CELL_PX = isPC ? Math.max(80, Math.floor((window.innerWidth - 490) / 7)) : 100;
   const GAP_PX = 1;
 
@@ -440,7 +449,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
           background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"visible"}}>
           {days.map((d,i)=>{
             if(!d)return(
-              <div key={`e${i}`} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
+              <div key={`e${i}`} className={isWeek?"cal-cell-week":"cal-cell-month"} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
             );
             const ds=isWeek?d:`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
             const isToday=ds===todayStr(),isSel=ds===selectedDate;
@@ -453,6 +462,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
 
             return(
               <div key={i} onClick={()=>onDatePopup(ds)}
+                className={isWeek?"cal-cell-week":"cal-cell-month"}
                 style={{
                   background:isSel?"#1e293b":isToday?"#fffbeb":"#fff",
                   minHeight:CELL_H,
@@ -1076,7 +1086,7 @@ function AnalyticsTab({records,customers,getCustomer}){
       </div>
 
       {/* ② ③ ④ 예약구분별 + 네이버세분화 + TOP10 — 3등분 그리드 */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14,alignItems:"start"}}>
+      <div className="analytics-3col" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14,alignItems:"start"}}>
 
         {/* 예약구분별 */}
         <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
