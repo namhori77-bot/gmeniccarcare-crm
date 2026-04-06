@@ -1002,20 +1002,186 @@ function AnalyticsTab({records,customers,getCustomer}){
     네이버단골:{bg:"#bbf7d0",color:"#166534",border:"#22c55e"},
   };
 
+  // ── 총연도별 매출 집계 ────────────────────────────────
+  const allYearStats = useMemo(()=>{
+    const allYears = [...new Set(records.map(r=>r.date?.slice(0,4)).filter(Boolean))].sort();
+    return allYears.map(y=>{
+      const yRecs = records.filter(r=>r.date?.startsWith(y));
+      const rev = yRecs.reduce((s,r)=>s+Number(r.amount),0);
+      const cnt = yRecs.length;
+      // 월별 매출
+      const monthly = Array.from({length:12},(_,mi)=>{
+        const mo = `${y}-${String(mi+1).padStart(2,"0")}`;
+        const moRecs = yRecs.filter(r=>r.date?.startsWith(mo));
+        return moRecs.reduce((s,r)=>s+Number(r.amount),0);
+      });
+      // 예약구분별
+      const btMap={신규:0,기존:0,단골:0,지메닉:0,네이버:0};
+      yRecs.forEach(r=>{
+        const c=getCustomer(r.customerId);
+        const bt=c?.bookingType||"기타";
+        if(bt in btMap) btMap[bt]++;
+      });
+      return{year:y,rev,cnt,avg:cnt?Math.round(rev/cnt):0,monthly,btMap};
+    });
+  },[records,getCustomer]);
+
+  const [analyticsView, setAnalyticsView] = useState("yearly"); // yearly | monthly
+
   return(
     <div style={{animation:"fadeUp 0.3s ease"}}>
-      {/* 헤더 + 드롭박스 */}
+      {/* 탭 전환 */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#1e293b"}}>ANALYTICS</div>
-        <select
-          value={selYear}
-          onChange={e=>setSelYear(Number(e.target.value))}
-          style={{padding:"7px 12px",border:"1.5px solid #1e293b",borderRadius:8,fontSize:13,
-            fontWeight:700,color:"#1e293b",background:"#fff",cursor:"pointer",
-            fontFamily:"'Noto Sans KR',sans-serif",outline:"none"}}>
-          {years.map(y=><option key={y} value={y}>{y}년</option>)}
-        </select>
+        <div style={{display:"flex",background:"#fff",borderRadius:8,padding:2,gap:1,border:"1px solid #e2e8f0"}}>
+          {[["yearly","연도별 분석"],["monthly","월별 분석"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setAnalyticsView(v)}
+              style={{padding:"6px 14px",border:"none",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
+                background:analyticsView===v?"#1e293b":"none",
+                color:analyticsView===v?"#fff":"#94a3b8",transition:"all 0.15s"}}>{l}</button>
+          ))}
+        </div>
+        {analyticsView==="monthly"&&(
+          <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+            style={{padding:"6px 12px",border:"1.5px solid #1e293b",borderRadius:8,fontSize:13,
+              fontWeight:700,color:"#1e293b",background:"#fff",cursor:"pointer",outline:"none"}}>
+            {years.map(y=><option key={y} value={y}>{y}년</option>)}
+          </select>
+        )}
       </div>
+
+      {/* ══ 연도별 매출 분석 (엑셀 스타일) ══ */}
+      {analyticsView==="yearly"&&(
+        <div style={{marginBottom:16}}>
+          {/* 누적 합계 카드 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+            {(()=>{
+              const tot=allYearStats.reduce((s,y)=>s+y.rev,0);
+              const totCnt=allYearStats.reduce((s,y)=>s+y.cnt,0);
+              return[
+                ["누적 매출",formatKRW(tot),"#1e293b"],
+                ["총 입고",`${totCnt}대`,"#2563eb"],
+                ["연평균 매출",formatKRW(allYearStats.length?Math.round(tot/allYearStats.length):0),"#16a34a"],
+              ].map(([l,v,c])=>(
+                <div key={l} style={{background:"#fff",borderRadius:10,padding:"12px 8px",textAlign:"center",
+                  border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+                  <div style={{fontSize:9,color:"#94a3b8",marginBottom:5,fontWeight:600}}>{l}</div>
+                  <div style={{fontSize:12,fontWeight:800,color:c}}>{v}</div>
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* 연도별 매출 테이블 - 엑셀 스타일 */}
+          <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginBottom:14}}>
+            <div style={{padding:"10px 14px",background:"#1e293b",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#fff"}}>연도별 매출 현황</span>
+              <span style={{fontSize:9,color:"rgba(255,255,255,0.5)"}}>← 좌우 스크롤</span>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{textAlign:"left",minWidth:60,background:"#334155",color:"#fff"}}>연도</th>
+                    {Array.from({length:12},(_,i)=>(
+                      <th key={i} style={{minWidth:52,background:"#334155",color:"#e2e8f0"}}>{i+1}월</th>
+                    ))}
+                    <th style={{minWidth:70,background:"#0f172a",color:"#fbbf24"}}>합계(누적)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allYearStats.map((ys,ri)=>{
+                    const isEven=ri%2===0;
+                    return(
+                      <tr key={ys.year} style={{background:isEven?"#fff":"#f8fafc"}}>
+                        <td style={{textAlign:"left",fontWeight:700,fontSize:12,color:"#1e293b",
+                          background:"#f1f5f9",borderRight:"2px solid #e2e8f0"}}>
+                          {ys.year}년
+                        </td>
+                        {ys.monthly.map((m,mi)=>(
+                          <td key={mi} className="amt" style={{
+                            fontSize:11,color:m>0?"#1e293b":"#cbd5e1",
+                            background:m>0?(isEven?"#fff":"#f8fafc"):"transparent"}}>
+                            {m>0?formatK(m):"-"}
+                          </td>
+                        ))}
+                        <td style={{fontWeight:800,fontSize:12,color:"#1e293b",
+                          background:"#fef3c7",textAlign:"right",padding:"6px 10px"}}>
+                          {formatKRW(ys.rev)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* 누적합계 행 */}
+                  <tr style={{borderTop:"2px solid #1e293b"}}>
+                    <td colSpan={13} style={{textAlign:"right",fontSize:11,fontWeight:700,
+                      color:"#475569",padding:"6px 10px",background:"#f8fafc"}}>
+                      누적합계
+                    </td>
+                    <td style={{fontWeight:900,fontSize:13,color:"#1e293b",
+                      background:"#fbbf24",textAlign:"right",padding:"6px 10px"}}>
+                      {formatKRW(allYearStats.reduce((s,y)=>s+y.rev,0))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 연도별 입고/평균단가 테이블 */}
+          <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginBottom:14}}>
+            <div style={{padding:"10px 14px",background:"#334155"}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#fff"}}>연도별 통계</span>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{textAlign:"left",minWidth:60,background:"#475569",color:"#fff"}}>연도</th>
+                    <th style={{minWidth:50,background:"#475569",color:"#e2e8f0"}}>매출</th>
+                    <th style={{minWidth:44,background:"#475569",color:"#e2e8f0"}}>입고</th>
+                    <th style={{minWidth:50,background:"#475569",color:"#e2e8f0"}}>평균단가</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>신규</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>기존</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>단골</th>
+                    <th style={{minWidth:44,background:"#475569",color:"#e2e8f0"}}>네이버</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>지메닉</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allYearStats.map((ys,ri)=>{
+                    const isEven=ri%2===0;
+                    const bg=isEven?"#fff":"#f8fafc";
+                    const maxRev=Math.max(...allYearStats.map(y=>y.rev),1);
+                    const barW=Math.round(ys.rev/maxRev*100);
+                    return(
+                      <tr key={ys.year} style={{background:bg}}>
+                        <td style={{textAlign:"left",fontWeight:700,fontSize:11,background:"#f1f5f9",
+                          borderRight:"2px solid #e2e8f0",color:"#1e293b"}}>{ys.year}</td>
+                        <td style={{padding:"4px 6px",minWidth:50}}>
+                          <div style={{fontSize:10,fontWeight:700,color:"#1e293b",textAlign:"right",marginBottom:2}}>{formatK(ys.rev)}</div>
+                          <div style={{height:3,background:"#e2e8f0",borderRadius:2}}>
+                            <div style={{height:3,background:"#1e293b",borderRadius:2,width:`${barW}%`}}/>
+                          </div>
+                        </td>
+                        <td className="num">{ys.cnt}</td>
+                        <td className="amt" style={{fontSize:10}}>{formatK(ys.avg)}</td>
+                        <td className="num" style={{color:ys.btMap.신규?"#16a34a":"#cbd5e1"}}>{ys.btMap.신규||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.기존?"#2563eb":"#cbd5e1"}}>{ys.btMap.기존||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.단골?"#d97706":"#cbd5e1"}}>{ys.btMap.단골||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.네이버?"#15803d":"#cbd5e1"}}>{ys.btMap.네이버||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.지메닉?"#7c3aed":"#cbd5e1"}}>{ys.btMap.지메닉||"-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ 월별 상세 분석 (기존) ══ */}
+      {analyticsView==="monthly"&&(<div>
 
       {/* 연간 요약 */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
@@ -1170,6 +1336,8 @@ function AnalyticsTab({records,customers,getCustomer}){
 
       {/* ④ 날씨 × 매출 상관분석 */}
       <WeatherAnalysis records={records} selYear={selYear}/>
+
+      </div>)} {/* end monthly view */}
 
     </div>
   );
@@ -2638,44 +2806,44 @@ function App(){
   const closeSales=useCallback(()=>setShowSales(false),[]);
 
   // ── 모바일 뒤로가기 핸들러 ─────────────────────────────
-  // 상태 ref: 최신값을 popstate 핸들러에서 참조
   const stateRef = useRef({});
   useEffect(()=>{
     stateRef.current = {tab,sideOpen,bookingModal,custModal,dayPopup,quickBook,showSales};
   });
 
   useEffect(()=>{
-    // 히스토리 스택에 dummy entry 추가 (뒤로가기 감지용)
-    window.history.pushState({gmenic:true},"","");
+    // 초기 더미 스택 2개 쌓기 (대시보드 진입 시 여유분 확보)
+    window.history.pushState({gmenic:1},"","");
+    window.history.pushState({gmenic:2},"","");
 
-    const handlePop = ()=>{
+    const handlePop = (e)=>{
       const s = stateRef.current;
-      // 우선순위: 열려있는 것부터 닫기
-      if(s.bookingModal){ setBookingModal(null); window.history.pushState({gmenic:true},"",""); return; }
-      if(s.custModal){ setCustModal(null); window.history.pushState({gmenic:true},"",""); return; }
-      if(s.dayPopup){ setDayPopup(null); window.history.pushState({gmenic:true},"",""); return; }
-      if(s.quickBook){ setQuickBook(false); window.history.pushState({gmenic:true},"",""); return; }
-      if(s.sideOpen){ setSideOpen(false); window.history.pushState({gmenic:true},"",""); return; }
-      if(s.showSales){ setShowSales(false); window.history.pushState({gmenic:true},"",""); return; }
-      // 대시보드가 아니면 → 대시보드로
+      // 열린 레이어 우선 닫기
+      if(s.bookingModal){ setBookingModal(null); window.history.pushState({gmenic:2},"",""); return; }
+      if(s.custModal)   { setCustModal(null);    window.history.pushState({gmenic:2},"",""); return; }
+      if(s.dayPopup)    { setDayPopup(null);     window.history.pushState({gmenic:2},"",""); return; }
+      if(s.quickBook)   { setQuickBook(false);   window.history.pushState({gmenic:2},"",""); return; }
+      if(s.sideOpen)    { setSideOpen(false);    window.history.pushState({gmenic:2},"",""); return; }
+      if(s.showSales)   { setShowSales(false);   window.history.pushState({gmenic:2},"",""); return; }
+      // 대시보드 아닌 탭 → 대시보드
       if(s.tab !== "dashboard"){
         setTab("dashboard");
-        window.history.pushState({gmenic:true},"","");
+        window.history.pushState({gmenic:2},"","");
         return;
       }
-      // 대시보드에서 뒤로가기 → 종료 확인
-      if(window.confirm("앱을 종료하시겠습니까?")){
-        // 실제 종료: history 뒤로
-        window.history.go(-1);
-      } else {
-        // 취소: 스택 유지
-        window.history.pushState({gmenic:true},"","");
-      }
+      // 대시보드에서 → 종료 확인 토스트
+      window.history.pushState({gmenic:2},"",""); // 스택 복구 먼저
+      setExitToast(true);
+      if(exitToastTimer.current) clearTimeout(exitToastTimer.current);
+      exitToastTimer.current = setTimeout(()=>setExitToast(false), 2500);
     };
 
     window.addEventListener("popstate", handlePop);
     return ()=>{ window.removeEventListener("popstate", handlePop); };
   },[]);
+
+  const [exitToast, setExitToast] = useState(false);
+  const exitToastTimer = useRef(null);
 
   function goPrev(){
     if(view==="week"){setSelDate(d=>addDays(d,-7));return;}
@@ -2997,6 +3165,17 @@ function App(){
         </div>
       </div>
 
+      {/* 뒤로가기 종료 토스트 */}
+      {exitToast&&(
+        <div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",
+          background:"rgba(15,23,42,0.88)",color:"#fff",padding:"12px 24px",
+          borderRadius:20,fontSize:13,fontWeight:600,zIndex:9999,
+          boxShadow:"0 4px 20px rgba(0,0,0,0.3)",whiteSpace:"nowrap",
+          display:"flex",alignItems:"center",gap:10}}>
+          <span>📱</span>
+          <span>한 번 더 누르면 앱이 종료됩니다</span>
+        </div>
+      )}
       <button className="fab-quick" onClick={()=>setQuickBook(true)} title="빠른 예약">⚡</button>
       {quickBook&&(
         <QuickBookModal customers={customers}
