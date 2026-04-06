@@ -403,16 +403,16 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
-  const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "100px";
-  const GRID_W = isWeek ? "100%" : `calc(100px * 7 + 6px)`;
+  const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : (isPC?"140px":"60px");
+  const GRID_W = isWeek ? "100%" : (isPC?`calc(140px * 7 + 6px)`:`calc(60px * 7 + 6px)`);
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
   useEffect(()=>{
     const fn=()=>setIsPC(window.innerWidth>=768);
     window.addEventListener("resize",fn);
     return()=>window.removeEventListener("resize",fn);
   },[]);
-  const CELL_H = isWeek ? (isPC?140:110) : (isPC?120:90);
-  const CELL_PX = isPC ? 100 : 48; // 픽셀 단위 셀 너비 (종일 바 계산용)
+  const CELL_H = isWeek ? (isPC?160:110) : (isPC?150:100);
+  const CELL_PX = isPC ? 140 : 60; // 픽셀 단위 셀 너비 (종일 바 계산용)
   const GAP_PX = 1;
 
   return(
@@ -834,23 +834,32 @@ function CustomerSearch({customers,records,onEdit}){
             const btc=BT[c.bookingType]||BT["신규"];
             return(
               <div key={c.id} onClick={()=>{setSelected(c);setQuery(c.name||c.phone);}}
-                style={{background:"#fff",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid #e2e8f0",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"box-shadow 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.08)"}
-                onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.04)"}>
-                {/* 1줄: 고객명 + 총금액 */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                  <span style={{fontWeight:800,fontSize:14,color:"#0f172a",lineHeight:1.3,flex:1,marginRight:8,wordBreak:"break-all"}}>{c.name||c.phone}</span>
-                  <span style={{fontSize:13,fontWeight:700,color:"#1e293b",flexShrink:0}}>{formatKRW(total)}</span>
+                style={{background:"#fff",borderRadius:8,padding:"8px 12px",marginBottom:5,
+                  border:"1px solid #e2e8f0",cursor:"pointer",
+                  boxShadow:"0 1px 2px rgba(0,0,0,0.03)",transition:"box-shadow 0.15s",
+                  display:"flex",alignItems:"center",gap:10}}
+                onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                {/* 예약뱃지 */}
+                <span style={{fontSize:8,fontWeight:700,background:btc.bg,color:btc.color,
+                  padding:"2px 5px",borderRadius:4,border:`1px solid ${btc.border}`,
+                  flexShrink:0,minWidth:28,textAlign:"center"}}>{c.bookingType}</span>
+                {/* 고객명+전화 */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontWeight:700,fontSize:12,color:"#0f172a",
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {c.name||c.phone}
+                    </span>
+                    {c.name&&<span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{c.phone}</span>}
+                  </div>
+                  <div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {(c.cars||[]).join(" · ")||"차종없음"}
+                    {last&&<span style={{marginLeft:6,color:"#cbd5e1"}}>{last.date.slice(5).replace("-",".")}</span>}
+                  </div>
                 </div>
-                {/* 2줄: 전화번호 + 예약뱃지 */}
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                  <span style={{fontSize:11,color:"#64748b"}}>{c.phone||"번호없음"}</span>
-                  <span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`,flexShrink:0}}>{c.bookingType}</span>
-                </div>
-                {/* 3줄: 차종 */}
-                <div style={{fontSize:11,color:"#94a3b8"}}>{(c.cars||[]).join(" · ")||"차종 없음"}</div>
-                {last&&<div style={{fontSize:10,color:"#cbd5e1",marginTop:3}}>최근: {last.date} · {(last.services||[]).join(", ")}</div>}
-                {c.memo&&<div style={{fontSize:10,color:"#d97706",marginTop:2}}>📝 {c.memo}</div>}
+                {/* 총금액 */}
+                <span style={{fontSize:11,fontWeight:700,color:"#1e293b",flexShrink:0}}>{formatKRW(total)}</span>
               </div>
             );
           })}
@@ -1049,82 +1058,84 @@ function AnalyticsTab({records,customers,getCustomer}){
         </div>
       </div>
 
-      {/* ② 예약구분별 현황 - 통합 집계 + 네이버 세분화 */}
-      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
-          예약구분별 · {selYear}년 <span style={{fontSize:10,color:"#94a3b8",fontFamily:"'Noto Sans KR'"}}>(네이버+일반 통합)</span>
-        </div>
+      {/* ② ③ ④ 예약구분별 + 네이버세분화 + TOP10 — 3등분 그리드 */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14,alignItems:"start"}}>
 
-        {/* 통합 집계 카드 */}
-        {mergedStats.filter(s=>s.count>0).map(({cat,count,rev,avg})=>{
-          const cc=CAT_COLOR[cat];
-          const maxCnt=Math.max(...mergedStats.map(s=>s.count),1);
-          return(
-            <div key={cat} style={{borderRadius:10,padding:"12px 14px",marginBottom:8,background:cc.bg,border:`1px solid ${cc.border}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={{fontSize:13,fontWeight:700,color:cc.color}}>{cat}</span>
-                <span style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{formatKRW(rev)}</span>
-              </div>
-              <div style={{height:5,background:"rgba(0,0,0,0.06)",borderRadius:3,marginBottom:6}}>
-                <div style={{height:5,background:cc.color,borderRadius:3,width:`${count/maxCnt*100}%`,opacity:0.7}}/>
-              </div>
-              <div style={{display:"flex",gap:12,fontSize:11,color:"#64748b"}}>
-                <span>{count}건</span>
-                <span>객단가 {formatKRW(avg)}</span>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* 네이버 세분화 섹션 */}
-        <div style={{marginTop:16,paddingTop:14,borderTop:"1px dashed #e2e8f0"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#15803d",marginBottom:10,letterSpacing:0.5}}>
-            🔍 네이버 고객 세분화 (방문횟수 기준)
+        {/* 예약구분별 */}
+        <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#1e293b",marginBottom:12}}>
+            예약구분별 · {selYear}
           </div>
-          {Object.entries(naverDetail).map(([grade,custs])=>{
-            const nc=NAVER_COLOR[grade];
-            const gradeRecs=yearRecs.filter(r=>custs.some(c=>c.id===r.customerId||c.id===String(r.customerId)));
-            const rev=gradeRecs.reduce((s,r)=>s+Number(r.amount),0);
-            const label=grade==="네이버신규"?"첫방문":grade==="네이버기존"?"2~5회":grade==="네이버단골"?"6회 이상":"";
+          {mergedStats.filter(s=>s.count>0).map(({cat,count,rev,avg})=>{
+            const cc=CAT_COLOR[cat];
+            const maxCnt=Math.max(...mergedStats.map(s=>s.count),1);
             return(
-              <div key={grade} style={{borderRadius:8,padding:"10px 12px",marginBottom:7,background:nc.bg,border:`1px solid ${nc.border}`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div>
-                    <span style={{fontSize:12,fontWeight:700,color:nc.color}}>{grade}</span>
-                    <span style={{fontSize:10,color:"#64748b",marginLeft:6}}>{label}</span>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+              <div key={cat} style={{borderRadius:8,padding:"9px 11px",marginBottom:7,background:cc.bg,border:`1px solid ${cc.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <span style={{fontSize:11,fontWeight:700,color:cc.color}}>{cat}</span>
+                  <span style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{formatKRW(rev)}</span>
                 </div>
-                <div style={{fontSize:11,color:"#64748b",marginTop:4}}>
-                  고객 {custs.length}명 · {selYear}년 {gradeRecs.length}건
-                  {gradeRecs.length>0&&` · 객단가 ${formatKRW(Math.round(rev/gradeRecs.length))}`}
+                <div style={{height:4,background:"rgba(0,0,0,0.06)",borderRadius:2,marginBottom:5}}>
+                  <div style={{height:4,background:cc.color,borderRadius:2,width:`${count/maxCnt*100}%`,opacity:0.7}}/>
+                </div>
+                <div style={{display:"flex",gap:8,fontSize:10,color:"#64748b"}}>
+                  <span>{count}건</span>
+                  <span>{formatKRW(avg)}</span>
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
 
-      {/* ③ 작업내용 TOP 10 */}
-      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
-          작업내용 TOP 10 · {selYear}년
-        </div>
-        {topSvcs.length===0?<div style={{fontSize:13,color:"#94a3b8"}}>데이터 없음</div>:
-        topSvcs.map(([svc,cnt],i)=>(
-          <div key={svc} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:11,fontWeight:700,color:"#94a3b8",minWidth:18}}>{i+1}</span>
-                <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
-              </div>
-              <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{cnt}건</span>
-            </div>
-            <div style={{height:6,background:"#f1f5f9",borderRadius:3}}>
-              <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${cnt/maxSvc*100}%`,transition:"width 0.5s"}}/>
-            </div>
+        {/* 네이버 세분화 */}
+        <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#1e293b",marginBottom:12}}>
+            네이버 세분화 · {selYear}
           </div>
-        ))}
+          {Object.entries(naverDetail).map(([grade,custs])=>{
+            const nc=NAVER_COLOR[grade];
+            const gradeRecs=yearRecs.filter(r=>custs.some(c=>c.id===r.customerId||c.id===String(r.customerId)));
+            const rev=gradeRecs.reduce((s,r)=>s+Number(r.amount),0);
+            const label=grade==="네이버신규"?"첫방문":grade==="네이버기존"?"2~5회":grade==="네이버단골"?"6회+":"";
+            return(
+              <div key={grade} style={{borderRadius:8,padding:"9px 11px",marginBottom:7,background:nc.bg,border:`1px solid ${nc.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                  <div>
+                    <span style={{fontSize:11,fontWeight:700,color:nc.color}}>{grade}</span>
+                    <span style={{fontSize:9,color:"#64748b",marginLeft:4}}>{label}</span>
+                  </div>
+                  <span style={{fontSize:11,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+                </div>
+                <div style={{fontSize:10,color:"#64748b"}}>
+                  {custs.length}명 · {gradeRecs.length}건
+                  {gradeRecs.length>0&&<span> · {formatKRW(Math.round(rev/gradeRecs.length))}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 작업내용 TOP 10 */}
+        <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#1e293b",marginBottom:12}}>
+            TOP 10 · {selYear}
+          </div>
+          {topSvcs.length===0?<div style={{fontSize:12,color:"#94a3b8"}}>데이터 없음</div>:
+          topSvcs.map(([svc,cnt],i)=>(
+            <div key={svc} style={{marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,alignItems:"center"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                  <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",minWidth:14,flexShrink:0}}>{i+1}</span>
+                  <span style={{fontSize:11,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{svc}</span>
+                </div>
+                <span style={{fontSize:11,fontWeight:700,color:"#1e293b",flexShrink:0,marginLeft:4}}>{cnt}</span>
+              </div>
+              <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
+                <div style={{height:4,background:"#1e293b",borderRadius:2,width:`${cnt/maxSvc*100}%`,transition:"width 0.5s"}}/>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ④ 날씨 × 매출 상관분석 */}
