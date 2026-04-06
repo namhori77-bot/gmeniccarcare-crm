@@ -412,17 +412,18 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
   // PC: 셀 너비 calc 100% 꽉채움 / 모바일: 고정px (가로스크롤)
   const CELL_W = isPC ? "calc((100% - 6px) / 7)" : "100px";
   const GRID_W = isPC ? "100%" : "calc(100px * 7 + 6px)";
-  // PC: 뷰포트 높이 기준으로 셀 높이 자동 계산 (화면 꽉 채우기)
-  // 월간: (100vh - 상단헤더약210px) / 주수(5or6)
-  const weekCount = isWeek ? 1 : Math.ceil((days.length) / 7);
+  // PC: CSS vh 기반으로 셀 높이 계산 (화면 꽉 채우기)
+  // 상단 오프셋: 탭헤더72 + 뷰선택40 + 범례30 + 여백 = 약 160px
+  const weekCount = isWeek ? 1 : Math.ceil(days.length / 7);
+  const vhOffset = 164; // 상단 UI 합계 (px)
   const CELL_H = isWeek
-    ? (isPC ? Math.floor((window.innerHeight - 220) * 0.9) : 110)
-    : (isPC ? Math.max(120, Math.floor((window.innerHeight - 220) / weekCount)) : 90);
-  const CELL_PX = isPC ? Math.floor((window.innerWidth - 480) / 7) : 100; // 종일바 계산용
+    ? (isPC ? Math.max(140, Math.floor((window.innerHeight - vhOffset) * 0.88)) : 110)
+    : (isPC ? Math.max(100, Math.floor((window.innerHeight - vhOffset) / weekCount)) : 90);
+  const CELL_PX = isPC ? Math.max(80, Math.floor((window.innerWidth - 490) / 7)) : 100;
   const GAP_PX = 1;
 
   return(
-    <div style={{overflowX:isPC?"hidden":"auto",WebkitOverflowScrolling:"touch"}}>
+    <div style={{overflowX:isPC?"hidden":"auto",WebkitOverflowScrolling:"touch",height:isPC?"auto":"unset"}}>
       <div style={{width:GRID_W,minWidth:GRID_W}}>
         {/* 요일 헤더 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,background:"#e2e8f0",borderRadius:"10px 10px 0 0",overflow:"hidden"}}>
@@ -2702,11 +2703,7 @@ function App(){
           <button className="nav-item" onClick={()=>{setBookingModal({date:todayStr(),slot:"10:00",record:null});setSideOpen(false);}}>
             <span className="nav-icon">➕</span>예약 등록
           </button>
-          <button className="nav-item"
-            onClick={()=>{setQuickBook(true);setSideOpen(false);}}
-            style={{background:"rgba(99,102,241,0.18)",color:"#a5b4fc",borderLeft:"3px solid #6366f1",borderRadius:8}}>
-            <span className="nav-icon">⚡</span>빠른 예약
-          </button>
+
           <button className="nav-item" onClick={()=>{setCustModal("new");setSideOpen(false);}}>
             <span className="nav-icon">👤</span>신규 고객
           </button>
