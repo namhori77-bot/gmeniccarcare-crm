@@ -152,8 +152,8 @@
     .tbl-wrap td.amt { font-weight:700; color:#1e293b; }
     .tbl-wrap td.mo  { font-weight:600; color:#475569; background:#f8fafc; }
     @media(min-width:768px){
-      .pc-split{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;}
-      .pc-sticky{position:sticky;top:72px;}
+      .pc-split{display:flex;flex-direction:column;gap:12px;}
+      .pc-sticky{}
       /* PC에서 달력 셀 더 크게 */
       .cal-cell-pc { min-height: 130px !important; }
     }
@@ -403,15 +403,15 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
-  const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : (isPC?"140px":"60px");
-  const GRID_W = isWeek ? "100%" : (isPC?`calc(140px * 7 + 6px)`:`calc(60px * 7 + 6px)`);
+  const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "calc((100% - 6px) / 7)";
+  const GRID_W = "100%";
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
   useEffect(()=>{
     const fn=()=>setIsPC(window.innerWidth>=768);
     window.addEventListener("resize",fn);
     return()=>window.removeEventListener("resize",fn);
   },[]);
-  const CELL_H = isWeek ? (isPC?160:110) : (isPC?150:100);
+  const CELL_H = isWeek ? (isPC?180:110) : (isPC?160:100);
   const CELL_PX = isPC ? 140 : 60; // 픽셀 단위 셀 너비 (종일 바 계산용)
   const GAP_PX = 1;
 
@@ -827,6 +827,16 @@ function CustomerSearch({customers,records,onEdit}){
       {!query&&(
         <div>
           {sortedCustomers.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:"#cbd5e1",fontSize:13}}>NO CUSTOMERS YET</div>}
+          {sortedCustomers.length>0&&(
+            <div style={{display:"grid",gridTemplateColumns:"44px 1fr 90px 90px 70px 80px",
+              gap:6,padding:"4px 10px",marginBottom:4,
+              fontSize:9,fontWeight:700,color:"#94a3b8",letterSpacing:0.5,
+              borderBottom:"1px solid #e2e8f0"}}>
+              <span>구분</span><span>고객명</span><span>전화번호</span>
+              <span>차종</span><span style={{textAlign:"center"}}>최근방문</span>
+              <span style={{textAlign:"right"}}>누적금액</span>
+            </div>
+          )}
           {sortedCustomers.map(c=>{
             const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
             const total=cRecs.reduce((s,r)=>s+Number(r.amount),0);
@@ -834,32 +844,40 @@ function CustomerSearch({customers,records,onEdit}){
             const btc=BT[c.bookingType]||BT["신규"];
             return(
               <div key={c.id} onClick={()=>{setSelected(c);setQuery(c.name||c.phone);}}
-                style={{background:"#fff",borderRadius:8,padding:"8px 12px",marginBottom:5,
-                  border:"1px solid #e2e8f0",cursor:"pointer",
-                  boxShadow:"0 1px 2px rgba(0,0,0,0.03)",transition:"box-shadow 0.15s",
-                  display:"flex",alignItems:"center",gap:10}}
+                style={{display:"grid",gridTemplateColumns:"44px 1fr 90px 90px 70px 80px",
+                  alignItems:"center",gap:6,
+                  padding:"5px 10px",marginBottom:2,
+                  background:"#fff",borderRadius:6,border:"1px solid #f1f5f9",
+                  cursor:"pointer",fontSize:11,transition:"background 0.1s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
                 onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                {/* 예약뱃지 */}
+                {/* 뱃지 */}
                 <span style={{fontSize:8,fontWeight:700,background:btc.bg,color:btc.color,
-                  padding:"2px 5px",borderRadius:4,border:`1px solid ${btc.border}`,
-                  flexShrink:0,minWidth:28,textAlign:"center"}}>{c.bookingType}</span>
-                {/* 고객명+전화 */}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontWeight:700,fontSize:12,color:"#0f172a",
-                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {c.name||c.phone}
-                    </span>
-                    {c.name&&<span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{c.phone}</span>}
-                  </div>
-                  <div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {(c.cars||[]).join(" · ")||"차종없음"}
-                    {last&&<span style={{marginLeft:6,color:"#cbd5e1"}}>{last.date.slice(5).replace("-",".")}</span>}
-                  </div>
-                </div>
-                {/* 총금액 */}
-                <span style={{fontSize:11,fontWeight:700,color:"#1e293b",flexShrink:0}}>{formatKRW(total)}</span>
+                  padding:"2px 4px",borderRadius:4,border:`1px solid ${btc.border}`,
+                  textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                  {c.bookingType}
+                </span>
+                {/* 고객명 */}
+                <span style={{fontWeight:700,fontSize:12,color:"#0f172a",
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {c.name||c.phone}
+                </span>
+                {/* 전화번호 */}
+                <span style={{fontSize:10,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {c.phone||"-"}
+                </span>
+                {/* 차종 */}
+                <span style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {(c.cars||[])[0]||"차종없음"}
+                </span>
+                {/* 최근날짜 */}
+                <span style={{fontSize:10,color:"#cbd5e1",textAlign:"center"}}>
+                  {last?last.date.slice(5).replace("-","."):"-"}
+                </span>
+                {/* 금액 */}
+                <span style={{fontSize:11,fontWeight:700,color:"#1e293b",textAlign:"right"}}>
+                  {formatKRW(total)}
+                </span>
               </div>
             );
           })}
