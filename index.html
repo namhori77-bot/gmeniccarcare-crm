@@ -164,9 +164,12 @@
     }
     @media(max-width:767px){
       .pc-split{display:block;}
-      .cust-grid{grid-template-columns:1fr!important;gap:4px!important;}
-      .cust-grid > div{padding:7px 10px!important;border-radius:8px!important;}
-      .analytics-3col{grid-template-columns:1fr!important;gap:8px!important;}
+      .cust-grid{grid-template-columns:1fr!important;gap:6px!important;}
+      .cust-grid > div{padding:10px 12px!important;border-radius:10px!important;
+        min-width:0!important;box-sizing:border-box!important;width:100%!important;}
+      .analytics-3col{grid-template-columns:repeat(3,1fr)!important;gap:6px!important;align-items:stretch!important;}
+      .analytics-3col > div{padding:8px!important;border-radius:8px!important;}
+      .analytics-3col > div > div:first-child{font-size:10px!important;margin-bottom:6px!important;}
     }
   </style>
 </head>
@@ -1099,15 +1102,15 @@ function AnalyticsTab({records,customers,getCustomer}){
             return(
               <div key={cat} style={{borderRadius:8,padding:"9px 11px",marginBottom:7,background:cc.bg,border:`1px solid ${cc.border}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                  <span style={{fontSize:11,fontWeight:700,color:cc.color}}>{cat}</span>
-                  <span style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{formatKRW(rev)}</span>
+                  <span style={{fontSize:9,fontWeight:700,color:cc.color,wordBreak:"keep-all"}}>{cat}</span>
+                  <span style={{fontSize:10,fontWeight:800,color:"#1e293b",textAlign:"right",wordBreak:"keep-all"}}>{formatKRW(rev)}</span>
                 </div>
                 <div style={{height:4,background:"rgba(0,0,0,0.06)",borderRadius:2,marginBottom:5}}>
                   <div style={{height:4,background:cc.color,borderRadius:2,width:`${count/maxCnt*100}%`,opacity:0.7}}/>
                 </div>
-                <div style={{display:"flex",gap:8,fontSize:10,color:"#64748b"}}>
-                  <span>{count}건</span>
-                  <span>{formatKRW(avg)}</span>
+                <div style={{fontSize:9,color:"#64748b",lineHeight:1.5}}>
+                  <div>{count}건</div>
+                  <div>{formatKRW(avg)}</div>
                 </div>
               </div>
             );
@@ -1128,14 +1131,14 @@ function AnalyticsTab({records,customers,getCustomer}){
               <div key={grade} style={{borderRadius:8,padding:"9px 11px",marginBottom:7,background:nc.bg,border:`1px solid ${nc.border}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
                   <div>
-                    <span style={{fontSize:11,fontWeight:700,color:nc.color}}>{grade}</span>
-                    <span style={{fontSize:9,color:"#64748b",marginLeft:4}}>{label}</span>
+                    <span style={{fontSize:9,fontWeight:700,color:nc.color,wordBreak:"keep-all"}}>{grade}</span>
+                    <div style={{fontSize:8,color:"#64748b",marginTop:1}}>{label}</div>
                   </div>
-                  <span style={{fontSize:11,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+                  <span style={{fontSize:10,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
                 </div>
-                <div style={{fontSize:10,color:"#64748b"}}>
-                  {custs.length}명 · {gradeRecs.length}건
-                  {gradeRecs.length>0&&<span> · {formatKRW(Math.round(rev/gradeRecs.length))}</span>}
+                <div style={{fontSize:9,color:"#64748b",lineHeight:1.5}}>
+                  <div>{custs.length}명 · {gradeRecs.length}건</div>
+                  {gradeRecs.length>0&&<div>{formatKRW(Math.round(rev/gradeRecs.length))}</div>}
                 </div>
               </div>
             );
@@ -1151,11 +1154,11 @@ function AnalyticsTab({records,customers,getCustomer}){
           topSvcs.map(([svc,cnt],i)=>(
             <div key={svc} style={{marginBottom:8}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,alignItems:"center"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
-                  <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",minWidth:14,flexShrink:0}}>{i+1}</span>
-                  <span style={{fontSize:11,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{svc}</span>
+                <div style={{display:"flex",alignItems:"flex-start",gap:4,minWidth:0}}>
+                  <span style={{fontSize:9,fontWeight:700,color:"#94a3b8",minWidth:12,flexShrink:0}}>{i+1}</span>
+                  <span style={{fontSize:10,color:"#334155",wordBreak:"break-all",lineHeight:1.3}}>{svc}</span>
                 </div>
-                <span style={{fontSize:11,fontWeight:700,color:"#1e293b",flexShrink:0,marginLeft:4}}>{cnt}</span>
+                <span style={{fontSize:10,fontWeight:700,color:"#1e293b",flexShrink:0}}>{cnt}</span>
               </div>
               <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
                 <div style={{height:4,background:"#1e293b",borderRadius:2,width:`${cnt/maxSvc*100}%`,transition:"width 0.5s"}}/>
