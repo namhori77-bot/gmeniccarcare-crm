@@ -828,6 +828,7 @@ function CustomerSearch({customers,records,onEdit}){
         <div>
           {sortedCustomers.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:"#cbd5e1",fontSize:13}}>NO CUSTOMERS YET</div>}
 
+<div className="cust-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
           {sortedCustomers.map(c=>{
             const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
             const total=cRecs.reduce((s,r)=>s+Number(r.amount),0);
