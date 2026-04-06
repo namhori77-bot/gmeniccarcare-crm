@@ -126,6 +126,22 @@
     .fab-quick:active { transform: scale(0.91); }
 
     /* 모바일 */
+    /* 로그인 화면 */
+    .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;
+      background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0f172a 100%);padding:20px;box-sizing:border-box;}
+    .login-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
+      border-radius:20px;padding:40px 32px;width:100%;max-width:360px;backdrop-filter:blur(10px);
+      box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+    .login-inp{width:100%;padding:13px 16px;background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:15px;
+      outline:none;box-sizing:border-box;font-family:'Noto Sans KR',sans-serif;transition:border 0.2s;}
+    .login-inp:focus{border-color:rgba(255,255,255,0.5);}
+    .login-inp::placeholder{color:rgba(255,255,255,0.3);}
+    .login-btn{width:100%;padding:14px;background:#1e293b;border:1px solid rgba(255,255,255,0.2);
+      border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;
+      font-family:'Noto Sans KR',sans-serif;transition:all 0.2s;margin-top:4px;}
+    .login-btn:hover{background:#334155;}
+    .login-btn:active{transform:scale(0.98);}
     @media(max-width:767px){
       .sidebar { transform: translateX(-220px); }
       .sidebar.open { transform: translateX(0); }
@@ -152,12 +168,25 @@
     .tbl-wrap td.amt { font-weight:700; color:#1e293b; }
     .tbl-wrap td.mo  { font-weight:600; color:#475569; background:#f8fafc; }
     @media(min-width:768px){
-      .pc-split{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;}
+      .pc-split{display:grid;grid-template-columns:1fr 320px;gap:12px;align-items:start;}
       .pc-sticky{position:sticky;top:72px;}
+      /* PC 캘린더 셀 높이 CSS 강제 */
+      @media(min-width:768px){
+        .cal-cell-month { min-height: calc((100vh - 210px) / 5) !important; }
+        .cal-cell-week  { min-height: calc((100vh - 210px) * 0.85) !important; }
+      }
       /* PC에서 달력 셀 더 크게 */
       .cal-cell-pc { min-height: 130px !important; }
     }
-    @media(max-width:767px){ .pc-split{display:block;} }
+    @media(max-width:767px){
+      .pc-split{display:block;}
+      .cust-grid{grid-template-columns:1fr!important;gap:6px!important;}
+      .cust-grid > div{padding:10px 12px!important;border-radius:10px!important;
+        min-width:0!important;box-sizing:border-box!important;width:100%!important;}
+      .analytics-3col{grid-template-columns:repeat(3,1fr)!important;gap:6px!important;align-items:stretch!important;}
+      .analytics-3col > div{padding:8px!important;border-radius:8px!important;}
+      .analytics-3col > div > div:first-child{font-size:10px!important;margin-bottom:6px!important;}
+    }
   </style>
 </head>
 <body>
@@ -403,20 +432,26 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
-  const CELL_W = isWeek ? "calc((100% - 6px) / 7)" : "100px";
-  const GRID_W = isWeek ? "100%" : `calc(100px * 7 + 6px)`;
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
   useEffect(()=>{
     const fn=()=>setIsPC(window.innerWidth>=768);
     window.addEventListener("resize",fn);
     return()=>window.removeEventListener("resize",fn);
   },[]);
-  const CELL_H = isWeek ? (isPC?140:110) : (isPC?120:90);
-  const CELL_PX = isPC ? 100 : 48; // 픽셀 단위 셀 너비 (종일 바 계산용)
+  // PC: 셀 너비 calc 100% 꽉채움 / 모바일: 고정px (가로스크롤)
+  const CELL_W = isPC ? "calc((100% - 6px) / 7)" : "100px";
+  const GRID_W = isPC ? "100%" : "calc(100px * 7 + 6px)";
+  // PC: CSS vh 기반으로 셀 높이 계산 (화면 꽉 채우기)
+  // 상단 오프셋: 탭헤더72 + 뷰선택40 + 범례30 + 여백 = 약 160px
+  const weekCount = isWeek ? 1 : Math.ceil(days.length / 7);
+  const vhOffset = 164; // 상단 UI 합계 (px)
+  // JS 계산은 모바일 fallback용 (PC는 CSS calc로 override)
+  const CELL_H = isWeek ? 110 : 90; // 모바일 기준값
+  const CELL_PX = isPC ? Math.max(80, Math.floor((window.innerWidth - 490) / 7)) : 100;
   const GAP_PX = 1;
 
   return(
-    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+    <div style={{overflowX:isPC?"hidden":"auto",WebkitOverflowScrolling:"touch",height:isPC?"auto":"unset"}}>
       <div style={{width:GRID_W,minWidth:GRID_W}}>
         {/* 요일 헤더 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,background:"#e2e8f0",borderRadius:"10px 10px 0 0",overflow:"hidden"}}>
@@ -433,7 +468,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
           background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"visible"}}>
           {days.map((d,i)=>{
             if(!d)return(
-              <div key={`e${i}`} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
+              <div key={`e${i}`} className={isWeek?"cal-cell-week":"cal-cell-month"} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
             );
             const ds=isWeek?d:`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
             const isToday=ds===todayStr(),isSel=ds===selectedDate;
@@ -446,6 +481,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
 
             return(
               <div key={i} onClick={()=>onDatePopup(ds)}
+                className={isWeek?"cal-cell-week":"cal-cell-month"}
                 style={{
                   background:isSel?"#1e293b":isToday?"#fffbeb":"#fff",
                   minHeight:CELL_H,
@@ -827,6 +863,8 @@ function CustomerSearch({customers,records,onEdit}){
       {!query&&(
         <div>
           {sortedCustomers.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:"#cbd5e1",fontSize:13}}>NO CUSTOMERS YET</div>}
+
+<div className="cust-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
           {sortedCustomers.map(c=>{
             const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
             const total=cRecs.reduce((s,r)=>s+Number(r.amount),0);
@@ -834,26 +872,43 @@ function CustomerSearch({customers,records,onEdit}){
             const btc=BT[c.bookingType]||BT["신규"];
             return(
               <div key={c.id} onClick={()=>{setSelected(c);setQuery(c.name||c.phone);}}
-                style={{background:"#fff",borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid #e2e8f0",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"box-shadow 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.08)"}
+                style={{background:"#fff",borderRadius:10,padding:"10px 12px",
+                  border:"1px solid #e2e8f0",cursor:"pointer",
+                  boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"box-shadow 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.09)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.04)"}>
-                {/* 1줄: 고객명 + 총금액 */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                  <span style={{fontWeight:800,fontSize:14,color:"#0f172a",lineHeight:1.3,flex:1,marginRight:8,wordBreak:"break-all"}}>{c.name||c.phone}</span>
-                  <span style={{fontSize:13,fontWeight:700,color:"#1e293b",flexShrink:0}}>{formatKRW(total)}</span>
+                {/* 1행: 뱃지 + 이름 + 금액 */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,minWidth:0}}>
+                    <span style={{fontSize:8,fontWeight:700,background:btc.bg,color:btc.color,
+                      padding:"2px 5px",borderRadius:4,border:`1px solid ${btc.border}`,flexShrink:0}}>
+                      {c.bookingType}
+                    </span>
+                    <span style={{fontWeight:800,fontSize:13,color:"#0f172a",
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {c.name||c.phone}
+                    </span>
+                  </div>
+                  {isAdmin&&<span style={{fontSize:12,fontWeight:700,color:"#1e293b",flexShrink:0,marginLeft:4}}>
+                    {formatKRW(total)}
+                  </span>}
                 </div>
-                {/* 2줄: 전화번호 + 예약뱃지 */}
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                  <span style={{fontSize:11,color:"#64748b"}}>{c.phone||"번호없음"}</span>
-                  <span style={{fontSize:9,fontWeight:700,background:btc.bg,color:btc.color,padding:"1px 6px",borderRadius:5,border:`1px solid ${btc.border}`,flexShrink:0}}>{c.bookingType}</span>
+                {/* 2행: 전화 */}
+                {c.name&&<div style={{fontSize:11,color:"#64748b",marginBottom:2}}>{c.phone}</div>}
+                {/* 3행: 차종 + 최근날짜 */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {(c.cars||[]).join(" · ")||"차종없음"}
+                  </span>
+                  {last&&<span style={{fontSize:10,color:"#cbd5e1",flexShrink:0,marginLeft:4}}>
+                    {last.date.slice(5).replace("-",".")}
+                  </span>}
                 </div>
-                {/* 3줄: 차종 */}
-                <div style={{fontSize:11,color:"#94a3b8"}}>{(c.cars||[]).join(" · ")||"차종 없음"}</div>
-                {last&&<div style={{fontSize:10,color:"#cbd5e1",marginTop:3}}>최근: {last.date} · {(last.services||[]).join(", ")}</div>}
-                {c.memo&&<div style={{fontSize:10,color:"#d97706",marginTop:2}}>📝 {c.memo}</div>}
+                {c.memo&&<div style={{fontSize:10,color:"#d97706",marginTop:3}}>📝 {c.memo}</div>}
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>
@@ -963,20 +1018,186 @@ function AnalyticsTab({records,customers,getCustomer}){
     네이버단골:{bg:"#bbf7d0",color:"#166534",border:"#22c55e"},
   };
 
+  // ── 총연도별 매출 집계 ────────────────────────────────
+  const allYearStats = useMemo(()=>{
+    const allYears = [...new Set(records.map(r=>r.date?.slice(0,4)).filter(Boolean))].sort();
+    return allYears.map(y=>{
+      const yRecs = records.filter(r=>r.date?.startsWith(y));
+      const rev = yRecs.reduce((s,r)=>s+Number(r.amount),0);
+      const cnt = yRecs.length;
+      // 월별 매출
+      const monthly = Array.from({length:12},(_,mi)=>{
+        const mo = `${y}-${String(mi+1).padStart(2,"0")}`;
+        const moRecs = yRecs.filter(r=>r.date?.startsWith(mo));
+        return moRecs.reduce((s,r)=>s+Number(r.amount),0);
+      });
+      // 예약구분별
+      const btMap={신규:0,기존:0,단골:0,지메닉:0,네이버:0};
+      yRecs.forEach(r=>{
+        const c=getCustomer(r.customerId);
+        const bt=c?.bookingType||"기타";
+        if(bt in btMap) btMap[bt]++;
+      });
+      return{year:y,rev,cnt,avg:cnt?Math.round(rev/cnt):0,monthly,btMap};
+    });
+  },[records,getCustomer]);
+
+  const [analyticsView, setAnalyticsView] = useState("yearly"); // yearly | monthly
+
   return(
     <div style={{animation:"fadeUp 0.3s ease"}}>
-      {/* 헤더 + 드롭박스 */}
+      {/* 탭 전환 */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:"#1e293b"}}>ANALYTICS</div>
-        <select
-          value={selYear}
-          onChange={e=>setSelYear(Number(e.target.value))}
-          style={{padding:"7px 12px",border:"1.5px solid #1e293b",borderRadius:8,fontSize:13,
-            fontWeight:700,color:"#1e293b",background:"#fff",cursor:"pointer",
-            fontFamily:"'Noto Sans KR',sans-serif",outline:"none"}}>
-          {years.map(y=><option key={y} value={y}>{y}년</option>)}
-        </select>
+        <div style={{display:"flex",background:"#fff",borderRadius:8,padding:2,gap:1,border:"1px solid #e2e8f0"}}>
+          {[["yearly","연도별 분석"],["monthly","월별 분석"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setAnalyticsView(v)}
+              style={{padding:"6px 14px",border:"none",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
+                background:analyticsView===v?"#1e293b":"none",
+                color:analyticsView===v?"#fff":"#94a3b8",transition:"all 0.15s"}}>{l}</button>
+          ))}
+        </div>
+        {analyticsView==="monthly"&&(
+          <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+            style={{padding:"6px 12px",border:"1.5px solid #1e293b",borderRadius:8,fontSize:13,
+              fontWeight:700,color:"#1e293b",background:"#fff",cursor:"pointer",outline:"none"}}>
+            {years.map(y=><option key={y} value={y}>{y}년</option>)}
+          </select>
+        )}
       </div>
+
+      {/* ══ 연도별 매출 분석 (엑셀 스타일) ══ */}
+      {analyticsView==="yearly"&&(
+        <div style={{marginBottom:16}}>
+          {/* 누적 합계 카드 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+            {(()=>{
+              const tot=allYearStats.reduce((s,y)=>s+y.rev,0);
+              const totCnt=allYearStats.reduce((s,y)=>s+y.cnt,0);
+              return[
+                ["누적 매출",formatKRW(tot),"#1e293b"],
+                ["총 입고",`${totCnt}대`,"#2563eb"],
+                ["연평균 매출",formatKRW(allYearStats.length?Math.round(tot/allYearStats.length):0),"#16a34a"],
+              ].map(([l,v,c])=>(
+                <div key={l} style={{background:"#fff",borderRadius:10,padding:"12px 8px",textAlign:"center",
+                  border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+                  <div style={{fontSize:9,color:"#94a3b8",marginBottom:5,fontWeight:600}}>{l}</div>
+                  <div style={{fontSize:12,fontWeight:800,color:c}}>{v}</div>
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* 연도별 매출 테이블 - 엑셀 스타일 */}
+          <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginBottom:14}}>
+            <div style={{padding:"10px 14px",background:"#1e293b",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#fff"}}>연도별 매출 현황</span>
+              <span style={{fontSize:9,color:"rgba(255,255,255,0.5)"}}>← 좌우 스크롤</span>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{textAlign:"left",minWidth:60,background:"#334155",color:"#fff"}}>연도</th>
+                    {Array.from({length:12},(_,i)=>(
+                      <th key={i} style={{minWidth:52,background:"#334155",color:"#e2e8f0"}}>{i+1}월</th>
+                    ))}
+                    <th style={{minWidth:70,background:"#0f172a",color:"#fbbf24"}}>합계(누적)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allYearStats.map((ys,ri)=>{
+                    const isEven=ri%2===0;
+                    return(
+                      <tr key={ys.year} style={{background:isEven?"#fff":"#f8fafc"}}>
+                        <td style={{textAlign:"left",fontWeight:700,fontSize:12,color:"#1e293b",
+                          background:"#f1f5f9",borderRight:"2px solid #e2e8f0"}}>
+                          {ys.year}년
+                        </td>
+                        {ys.monthly.map((m,mi)=>(
+                          <td key={mi} className="amt" style={{
+                            fontSize:11,color:m>0?"#1e293b":"#cbd5e1",
+                            background:m>0?(isEven?"#fff":"#f8fafc"):"transparent"}}>
+                            {m>0?formatK(m):"-"}
+                          </td>
+                        ))}
+                        <td style={{fontWeight:800,fontSize:12,color:"#1e293b",
+                          background:"#fef3c7",textAlign:"right",padding:"6px 10px"}}>
+                          {formatKRW(ys.rev)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* 누적합계 행 */}
+                  <tr style={{borderTop:"2px solid #1e293b"}}>
+                    <td colSpan={13} style={{textAlign:"right",fontSize:11,fontWeight:700,
+                      color:"#475569",padding:"6px 10px",background:"#f8fafc"}}>
+                      누적합계
+                    </td>
+                    <td style={{fontWeight:900,fontSize:13,color:"#1e293b",
+                      background:"#fbbf24",textAlign:"right",padding:"6px 10px"}}>
+                      {formatKRW(allYearStats.reduce((s,y)=>s+y.rev,0))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 연도별 입고/평균단가 테이블 */}
+          <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginBottom:14}}>
+            <div style={{padding:"10px 14px",background:"#334155"}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#fff"}}>연도별 통계</span>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{textAlign:"left",minWidth:60,background:"#475569",color:"#fff"}}>연도</th>
+                    <th style={{minWidth:50,background:"#475569",color:"#e2e8f0"}}>매출</th>
+                    <th style={{minWidth:44,background:"#475569",color:"#e2e8f0"}}>입고</th>
+                    <th style={{minWidth:50,background:"#475569",color:"#e2e8f0"}}>평균단가</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>신규</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>기존</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>단골</th>
+                    <th style={{minWidth:44,background:"#475569",color:"#e2e8f0"}}>네이버</th>
+                    <th style={{minWidth:36,background:"#475569",color:"#e2e8f0"}}>지메닉</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allYearStats.map((ys,ri)=>{
+                    const isEven=ri%2===0;
+                    const bg=isEven?"#fff":"#f8fafc";
+                    const maxRev=Math.max(...allYearStats.map(y=>y.rev),1);
+                    const barW=Math.round(ys.rev/maxRev*100);
+                    return(
+                      <tr key={ys.year} style={{background:bg}}>
+                        <td style={{textAlign:"left",fontWeight:700,fontSize:11,background:"#f1f5f9",
+                          borderRight:"2px solid #e2e8f0",color:"#1e293b"}}>{ys.year}</td>
+                        <td style={{padding:"4px 6px",minWidth:50}}>
+                          <div style={{fontSize:10,fontWeight:700,color:"#1e293b",textAlign:"right",marginBottom:2}}>{formatK(ys.rev)}</div>
+                          <div style={{height:3,background:"#e2e8f0",borderRadius:2}}>
+                            <div style={{height:3,background:"#1e293b",borderRadius:2,width:`${barW}%`}}/>
+                          </div>
+                        </td>
+                        <td className="num">{ys.cnt}</td>
+                        <td className="amt" style={{fontSize:10}}>{formatK(ys.avg)}</td>
+                        <td className="num" style={{color:ys.btMap.신규?"#16a34a":"#cbd5e1"}}>{ys.btMap.신규||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.기존?"#2563eb":"#cbd5e1"}}>{ys.btMap.기존||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.단골?"#d97706":"#cbd5e1"}}>{ys.btMap.단골||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.네이버?"#15803d":"#cbd5e1"}}>{ys.btMap.네이버||"-"}</td>
+                        <td className="num" style={{color:ys.btMap.지메닉?"#7c3aed":"#cbd5e1"}}>{ys.btMap.지메닉||"-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ 월별 상세 분석 (기존) ══ */}
+      {analyticsView==="monthly"&&(<div>
 
       {/* 연간 요약 */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
@@ -1049,83 +1270,625 @@ function AnalyticsTab({records,customers,getCustomer}){
         </div>
       </div>
 
-      {/* ② 예약구분별 현황 - 통합 집계 + 네이버 세분화 */}
-      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:14}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
-          예약구분별 · {selYear}년 <span style={{fontSize:10,color:"#94a3b8",fontFamily:"'Noto Sans KR'"}}>(네이버+일반 통합)</span>
-        </div>
+      {/* ② ③ ④ 예약구분별 + 네이버세분화 + TOP10 — 3등분 그리드 */}
+      <div className="analytics-3col" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14,alignItems:"start"}}>
 
-        {/* 통합 집계 카드 */}
-        {mergedStats.filter(s=>s.count>0).map(({cat,count,rev,avg})=>{
-          const cc=CAT_COLOR[cat];
-          const maxCnt=Math.max(...mergedStats.map(s=>s.count),1);
-          return(
-            <div key={cat} style={{borderRadius:10,padding:"12px 14px",marginBottom:8,background:cc.bg,border:`1px solid ${cc.border}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={{fontSize:13,fontWeight:700,color:cc.color}}>{cat}</span>
-                <span style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>{formatKRW(rev)}</span>
-              </div>
-              <div style={{height:5,background:"rgba(0,0,0,0.06)",borderRadius:3,marginBottom:6}}>
-                <div style={{height:5,background:cc.color,borderRadius:3,width:`${count/maxCnt*100}%`,opacity:0.7}}/>
-              </div>
-              <div style={{display:"flex",gap:12,fontSize:11,color:"#64748b"}}>
-                <span>{count}건</span>
-                <span>객단가 {formatKRW(avg)}</span>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* 네이버 세분화 섹션 */}
-        <div style={{marginTop:16,paddingTop:14,borderTop:"1px dashed #e2e8f0"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#15803d",marginBottom:10,letterSpacing:0.5}}>
-            🔍 네이버 고객 세분화 (방문횟수 기준)
+        {/* 예약구분별 */}
+        <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#1e293b",marginBottom:12}}>
+            예약구분별 · {selYear}
           </div>
-          {Object.entries(naverDetail).map(([grade,custs])=>{
-            const nc=NAVER_COLOR[grade];
-            const gradeRecs=yearRecs.filter(r=>custs.some(c=>c.id===r.customerId||c.id===String(r.customerId)));
-            const rev=gradeRecs.reduce((s,r)=>s+Number(r.amount),0);
-            const label=grade==="네이버신규"?"첫방문":grade==="네이버기존"?"2~5회":grade==="네이버단골"?"6회 이상":"";
+          {mergedStats.filter(s=>s.count>0).map(({cat,count,rev,avg})=>{
+            const cc=CAT_COLOR[cat];
+            const maxCnt=Math.max(...mergedStats.map(s=>s.count),1);
             return(
-              <div key={grade} style={{borderRadius:8,padding:"10px 12px",marginBottom:7,background:nc.bg,border:`1px solid ${nc.border}`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div>
-                    <span style={{fontSize:12,fontWeight:700,color:nc.color}}>{grade}</span>
-                    <span style={{fontSize:10,color:"#64748b",marginLeft:6}}>{label}</span>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+              <div key={cat} style={{borderRadius:8,padding:"9px 11px",marginBottom:7,background:cc.bg,border:`1px solid ${cc.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <span style={{fontSize:9,fontWeight:700,color:cc.color,wordBreak:"keep-all"}}>{cat}</span>
+                  <span style={{fontSize:10,fontWeight:800,color:"#1e293b",textAlign:"right",wordBreak:"keep-all"}}>{formatKRW(rev)}</span>
                 </div>
-                <div style={{fontSize:11,color:"#64748b",marginTop:4}}>
-                  고객 {custs.length}명 · {selYear}년 {gradeRecs.length}건
-                  {gradeRecs.length>0&&` · 객단가 ${formatKRW(Math.round(rev/gradeRecs.length))}`}
+                <div style={{height:4,background:"rgba(0,0,0,0.06)",borderRadius:2,marginBottom:5}}>
+                  <div style={{height:4,background:cc.color,borderRadius:2,width:`${count/maxCnt*100}%`,opacity:0.7}}/>
+                </div>
+                <div style={{fontSize:9,color:"#64748b",lineHeight:1.5}}>
+                  <div>{count}건</div>
+                  <div>{formatKRW(avg)}</div>
                 </div>
               </div>
             );
           })}
         </div>
+
+        {/* 네이버 세분화 */}
+        <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#1e293b",marginBottom:12}}>
+            네이버 세분화 · {selYear}
+          </div>
+          {Object.entries(naverDetail).map(([grade,custs])=>{
+            const nc=NAVER_COLOR[grade];
+            const gradeRecs=yearRecs.filter(r=>custs.some(c=>c.id===r.customerId||c.id===String(r.customerId)));
+            const rev=gradeRecs.reduce((s,r)=>s+Number(r.amount),0);
+            const label=grade==="네이버신규"?"첫방문":grade==="네이버기존"?"2~5회":grade==="네이버단골"?"6회+":"";
+            return(
+              <div key={grade} style={{borderRadius:8,padding:"9px 11px",marginBottom:7,background:nc.bg,border:`1px solid ${nc.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                  <div>
+                    <span style={{fontSize:9,fontWeight:700,color:nc.color,wordBreak:"keep-all"}}>{grade}</span>
+                    <div style={{fontSize:8,color:"#64748b",marginTop:1}}>{label}</div>
+                  </div>
+                  <span style={{fontSize:10,fontWeight:700,color:"#1e293b"}}>{formatKRW(rev)}</span>
+                </div>
+                <div style={{fontSize:9,color:"#64748b",lineHeight:1.5}}>
+                  <div>{custs.length}명 · {gradeRecs.length}건</div>
+                  {gradeRecs.length>0&&<div>{formatKRW(Math.round(rev/gradeRecs.length))}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 작업내용 TOP 10 */}
+        <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:1,color:"#1e293b",marginBottom:12}}>
+            TOP 10 · {selYear}
+          </div>
+          {topSvcs.length===0?<div style={{fontSize:12,color:"#94a3b8"}}>데이터 없음</div>:
+          topSvcs.map(([svc,cnt],i)=>(
+            <div key={svc} style={{marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,alignItems:"center"}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:4,minWidth:0}}>
+                  <span style={{fontSize:9,fontWeight:700,color:"#94a3b8",minWidth:12,flexShrink:0}}>{i+1}</span>
+                  <span style={{fontSize:10,color:"#334155",wordBreak:"break-all",lineHeight:1.3}}>{svc}</span>
+                </div>
+                <span style={{fontSize:10,fontWeight:700,color:"#1e293b",flexShrink:0}}>{cnt}</span>
+              </div>
+              <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
+                <div style={{height:4,background:"#1e293b",borderRadius:2,width:`${cnt/maxSvc*100}%`,transition:"width 0.5s"}}/>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ③ 작업내용 TOP 10 */}
-      <div style={{background:"#fff",borderRadius:12,padding:16,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b",marginBottom:14}}>
-          작업내용 TOP 10 · {selYear}년
-        </div>
-        {topSvcs.length===0?<div style={{fontSize:13,color:"#94a3b8"}}>데이터 없음</div>:
-        topSvcs.map(([svc,cnt],i)=>(
-          <div key={svc} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:11,fontWeight:700,color:"#94a3b8",minWidth:18}}>{i+1}</span>
-                <span style={{fontSize:13,color:"#334155"}}>{svc}</span>
-              </div>
-              <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{cnt}건</span>
-            </div>
-            <div style={{height:6,background:"#f1f5f9",borderRadius:3}}>
-              <div style={{height:6,background:"#1e293b",borderRadius:3,width:`${cnt/maxSvc*100}%`,transition:"width 0.5s"}}/>
-            </div>
+      {/* ④ 날씨 × 매출 상관분석 */}
+      <WeatherAnalysis records={records} selYear={selYear}/>
+
+      </div>)} {/* end monthly view */}
+
+    </div>
+  );
+}
+
+
+// ── 날씨 × 매출 상관분석 컴포넌트 ─────────────────────────
+// 위치: 해운대 중동 (위도 35.1631, 경도 129.1638)
+// API: Open-Meteo Archive (무료, CORS 허용, API키 없음)
+// 강수량 기준: 1mm 이상 = 비 온 날 (기상청 기준)
+const WEATHER_LAT = 35.1631;
+const WEATHER_LON = 129.1638;
+const RAIN_MM = 1.0;
+const CACHE_KEY = "gmenic_weather_cache";
+const CACHE_DAYS = 30; // 캐시 유효기간(일)
+
+function WeatherAnalysis({records, selYear}){
+  const [status, setStatus] = useState("idle"); // idle|loading|ok|error|nodata
+  const [weatherMap, setWeatherMap] = useState({}); // { "2024-03-05": 3.2, ... }
+  const [errMsg, setErrMsg] = useState("");
+
+  // ── 데이터 범위: records 전체 기간 ──────────────────────
+  const {startDate, endDate} = useMemo(()=>{
+    const dates = records.map(r=>r.date).filter(Boolean).sort();
+    if(dates.length === 0) return {startDate:null, endDate:null};
+    return {startDate: dates[0], endDate: dates[dates.length-1]};
+  },[records]);
+
+  // ── 캐시 로드 ────────────────────────────────────────────
+  function loadCache(){
+    try{
+      const raw = localStorage.getItem(CACHE_KEY);
+      if(!raw) return null;
+      const obj = JSON.parse(raw);
+      const age = (Date.now() - obj.fetchedAt) / 86400000;
+      if(age > CACHE_DAYS) return null;
+      // 범위가 캐시보다 넓으면 무효
+      if(startDate && obj.startDate && obj.startDate > startDate) return null;
+      if(endDate   && obj.endDate   && obj.endDate   < endDate)   return null;
+      return obj.data; // { "2024-03-05": 3.2, ... }
+    } catch(e){ return null; }
+  }
+
+  function saveCache(data){
+    try{
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        fetchedAt: Date.now(),
+        startDate,
+        endDate,
+        data
+      }));
+    } catch(e){}
+  }
+
+  // ── API 호출: 연도별 분할 요청 (Open-Meteo 최대 1년) ────
+  async function fetchWeather(){
+    if(!startDate || !endDate){ setStatus("nodata"); return; }
+    setStatus("loading");
+    setErrMsg("");
+    try{
+      const sy = parseInt(startDate.slice(0,4));
+      const ey = parseInt(endDate.slice(0,4));
+      const merged = {};
+
+      for(let y = sy; y <= ey; y++){
+        const s = y === sy ? startDate : `${y}-01-01`;
+        // 미래 날짜 제외: 오늘 이후는 요청 안 함
+        const today = new Date().toISOString().slice(0,10);
+        const eRaw = y === ey ? endDate : `${y}-12-31`;
+        const e = eRaw > today ? today : eRaw;
+        if(s > e) continue; // 범위 없으면 skip
+
+        // AbortController 방식 (구형 브라우저 호환)
+        const controller = new AbortController();
+        const timer = setTimeout(()=>controller.abort(), 15000);
+
+        // Open-Meteo 공식 archive API (2024년 이후 변경된 엔드포인트)
+        const url = `https://historical-forecast-api.open-meteo.com/v1/forecast`
+          + `?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}`
+          + `&start_date=${s}&end_date=${e}`
+          + `&daily=precipitation_sum&timezone=Asia%2FSeoul`;
+
+        let res, json;
+        try{
+          res = await fetch(url, {signal: controller.signal});
+          clearTimeout(timer);
+          if(!res.ok) throw new Error(`HTTP ${res.status}`);
+          json = await res.json();
+        } catch(fetchErr){
+          clearTimeout(timer);
+          // fallback: 구 archive API 시도
+          const urlFallback = `https://archive-api.open-meteo.com/v1/archive`
+            + `?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}`
+            + `&start_date=${s}&end_date=${e}`
+            + `&daily=precipitation_sum&timezone=Asia%2FSeoul`;
+          const ctrl2 = new AbortController();
+          const timer2 = setTimeout(()=>ctrl2.abort(), 15000);
+          try{
+            res = await fetch(urlFallback, {signal: ctrl2.signal});
+            clearTimeout(timer2);
+            if(!res.ok) throw new Error(`HTTP ${res.status}`);
+            json = await res.json();
+          } catch(e2){
+            clearTimeout(timer2);
+            throw fetchErr; // 원래 에러 던지기
+          }
+        }
+
+        const times = json?.daily?.time ?? [];
+        const precs = json?.daily?.precipitation_sum ?? [];
+        times.forEach((d,i)=>{
+          const v = precs[i];
+          merged[d] = (v === null || v === undefined) ? 0 : Number(v);
+        });
+      }
+
+      if(Object.keys(merged).length === 0) throw new Error("날씨 데이터 없음");
+      saveCache(merged);
+      setWeatherMap(merged);
+      setStatus("ok");
+    } catch(e){
+      setErrMsg(e.message || "알 수 없는 오류");
+      setStatus("error");
+    }
+  }
+
+  // ── 마운트 시 캐시 확인 후 필요하면 API 호출 ────────────
+  useEffect(()=>{
+    if(!startDate || !endDate){ setStatus("nodata"); return; }
+    const cached = loadCache();
+    if(cached){
+      setWeatherMap(cached);
+      setStatus("ok");
+    } else {
+      fetchWeather();
+    }
+  },[startDate, endDate]);
+
+  // ── 통계 계산: 월 단위 비온날 비율 vs 월 매출 총액 ────────
+  const stats = useMemo(()=>{
+    if(status !== "ok" || Object.keys(weatherMap).length === 0) return null;
+
+    // 월별 날씨 집계 (날씨 API 기준 전체 날짜)
+    const wByMonth = {}; // ym → { rainDays:N, totalDays:N }
+    Object.entries(weatherMap).forEach(([d, mm])=>{
+      const ym = d.slice(0,7);
+      if(!wByMonth[ym]) wByMonth[ym] = {rainDays:0, totalDays:0};
+      wByMonth[ym].totalDays++;
+      if(mm >= RAIN_MM) wByMonth[ym].rainDays++;
+    });
+
+    // 월별 매출 총액 (records 기준)
+    const revByMonth = {};
+    records.forEach(r=>{
+      if(!r.date) return;
+      const ym = r.date.slice(0,7);
+      revByMonth[ym] = (revByMonth[ym]||0) + Number(r.amount||0);
+    });
+
+    // 두 데이터 모두 있는 월만 pairs로 추출
+    // X = 비온날 비율(0~1), Y = 월 매출 총액
+    const pairs = Object.keys(wByMonth)
+      .filter(ym => ym in revByMonth && wByMonth[ym].totalDays > 0)
+      .map(ym => {
+        const w = wByMonth[ym];
+        const rainRatio = w.rainDays / w.totalDays; // 0~1
+        const rev = revByMonth[ym];
+        return { ym, rainDays:w.rainDays, totalDays:w.totalDays, rainRatio, rev };
+      })
+      .sort((a,b)=>a.ym.localeCompare(b.ym));
+
+    if(pairs.length === 0) return null;
+
+    // Pearson 상관계수: X=비온날비율, Y=월매출총액
+    const safe = arr => isFinite(arr) && !isNaN(arr) ? arr : 0;
+    let r = 0;
+    if(pairs.length >= 3){
+      const n  = pairs.length;
+      const mx = pairs.reduce((s,p)=>s+p.rainRatio,0)/n;
+      const my = pairs.reduce((s,p)=>s+p.rev,0)/n;
+      const num = pairs.reduce((s,p)=>s+(p.rainRatio-mx)*(p.rev-my),0);
+      const dx  = Math.sqrt(pairs.reduce((s,p)=>s+(p.rainRatio-mx)**2,0));
+      const dy  = Math.sqrt(pairs.reduce((s,p)=>s+(p.rev-my)**2,0));
+      r = safe((dx*dy===0)?0:num/(dx*dy));
+    }
+
+    const corrLabel = r >= 0.7 ? "강한 양의 상관"
+      : r >= 0.4  ? "중간 양의 상관"
+      : r >= 0.1  ? "약한 양의 상관"
+      : r > -0.1  ? "상관 없음"
+      : r > -0.4  ? "약한 음의 상관"
+      : r > -0.7  ? "중간 음의 상관"
+      : "강한 음의 상관";
+
+    const corrColor = Math.abs(r) < 0.1 ? "#94a3b8"
+      : r < 0 ? "#ef4444" : "#22c55e";
+
+    // 비온날 비율 TOP / BOTTOM 3 월
+    const sorted = [...pairs].sort((a,b)=>b.rainRatio-a.rainRatio);
+    const topRain  = sorted.slice(0,3);  // 비 가장 많은 달
+    const topClear = sorted.slice(-3).reverse(); // 비 가장 적은 달
+
+    // selYear 기준 월별 차트 데이터
+    const months = Array.from({length:12},(_,i)=>{
+      const ym = `${selYear}-${String(i+1).padStart(2,"0")}`;
+      const p  = pairs.find(x=>x.ym===ym);
+      return {
+        month: i+1, ym,
+        rainRatio: p ? p.rainRatio : null,
+        rev: p ? p.rev : null,
+        rainDays: p ? p.rainDays : null,
+        totalDays: p ? p.totalDays : null,
+      };
+    });
+
+    // 차트 스케일
+    const maxRev = Math.max(...pairs.map(p=>p.rev), 1);
+
+    // 전체 요약 통계
+    const avgRainRatio = pairs.reduce((s,p)=>s+p.rainRatio,0)/pairs.length;
+    const avgRev       = pairs.reduce((s,p)=>s+p.rev,0)/pairs.length;
+
+    return { pairs, r, corrLabel, corrColor,
+             topRain, topClear, months, maxRev,
+             avgRainRatio, avgRev };
+  },[weatherMap, records, status, selYear]);
+
+  // ── 렌더링 ───────────────────────────────────────────────
+  const cardStyle = {
+    background:"#fff", borderRadius:12, padding:16,
+    border:"1px solid #e2e8f0", boxShadow:"0 1px 3px rgba(0,0,0,0.04)",
+    marginTop:0
+  };
+
+  if(status === "nodata") return null;
+
+  return(
+    <div style={cardStyle}>
+      {/* 헤더 */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color:"#1e293b"}}>
+            🌧 날씨 × 매출 상관분석
           </div>
-        ))}
+          <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>
+            해운대 중동 · 강수량 {RAIN_MM}mm 이상 = 비 · 전체 데이터 기간
+          </div>
+        </div>
+        {status === "ok" && (
+          <button onClick={()=>{ localStorage.removeItem(CACHE_KEY); fetchWeather(); }}
+            style={{fontSize:10,color:"#94a3b8",background:"#f8fafc",border:"1px solid #e2e8f0",
+              borderRadius:6,padding:"3px 8px",cursor:"pointer",fontWeight:600}}>
+            새로고침
+          </button>
+        )}
       </div>
+
+      {/* 로딩 */}
+      {status === "loading" && (
+        <div style={{textAlign:"center",padding:"28px 0",color:"#94a3b8"}}>
+          <div style={{fontSize:22,marginBottom:8,animation:"spin 1s linear infinite",display:"inline-block"}}>⏳</div>
+          <div style={{fontSize:12}}>Open-Meteo에서 날씨 데이터를 불러오는 중...</div>
+          <div style={{fontSize:10,marginTop:4,color:"#cbd5e1"}}>
+            {startDate} ~ {endDate}
+          </div>
+        </div>
+      )}
+
+      {/* 오류 */}
+      {status === "error" && (
+        <div style={{textAlign:"center",padding:"20px 0"}}>
+          <div style={{fontSize:18,marginBottom:6}}>⚠️</div>
+          <div style={{fontSize:12,color:"#ef4444",marginBottom:4}}>날씨 데이터 로드 실패</div>
+          <div style={{fontSize:10,color:"#94a3b8",marginBottom:12}}>{errMsg}</div>
+          <button onClick={fetchWeather}
+            style={{fontSize:11,color:"#fff",background:"#1e293b",border:"none",
+              borderRadius:7,padding:"6px 16px",cursor:"pointer",fontWeight:700}}>
+            재시도
+          </button>
+        </div>
+      )}
+
+      {/* 분석 결과 */}
+      {status === "ok" && stats && (()=>{
+        const {pairs,r,corrLabel,corrColor,topRain,topClear,months,maxRev,avgRainRatio,avgRev} = stats;
+        const lowSample = pairs.length < 3;
+
+        return(
+          <>
+            {lowSample && (
+              <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:8,
+                padding:"7px 12px",marginBottom:12,fontSize:11,color:"#854d0e"}}>
+                ⚠️ 분석 가능한 월이 {pairs.length}개월로 적습니다. 데이터가 쌓일수록 정확해집니다.
+              </div>
+            )}
+
+            {/* 상관계수 카드 */}
+            <div style={{background:"#1e293b",borderRadius:12,padding:"16px",marginBottom:12}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",fontWeight:600,
+                letterSpacing:0.8,marginBottom:8}}>
+                PEARSON 상관계수 — 월별 비온날 비율 vs 월 매출 총액
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <span style={{fontSize:36,fontWeight:900,color:corrColor,
+                  fontFamily:"'Bebas Neue',sans-serif",letterSpacing:2,lineHeight:1}}>
+                  {r.toFixed(3)}
+                </span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:2}}>{corrLabel}</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.45)"}}>
+                    {pairs.length}개월 기준 · {startDate} ~ {endDate}
+                  </div>
+                </div>
+              </div>
+
+              {/* 상관계수 시각화 바 */}
+              <div style={{position:"relative",marginBottom:5}}>
+                <div style={{height:8,background:"rgba(255,255,255,0.08)",borderRadius:4}}>
+                  {/* 중심선 */}
+                  <div style={{position:"absolute",left:"50%",top:0,width:1,height:8,
+                    background:"rgba(255,255,255,0.25)"}}/>
+                  {/* 채움 바 */}
+                  <div style={{
+                    position:"absolute",
+                    left: r>=0 ? "50%" : `${(0.5+r/2)*100}%`,
+                    width:`${Math.abs(r)/2*100}%`,
+                    height:8, borderRadius:4,
+                    background:`linear-gradient(90deg,${r<0?"#ef4444,#fca5a5":"#22c55e,#86efac"})`,
+                    transition:"all 0.6s ease"
+                  }}/>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                  <span style={{fontSize:9,color:"rgba(255,255,255,0.25)"}}>-1.0 강한음</span>
+                  <span style={{fontSize:9,color:"rgba(255,255,255,0.25)"}}>0</span>
+                  <span style={{fontSize:9,color:"rgba(255,255,255,0.25)"}}>+1.0 강한양</span>
+                </div>
+              </div>
+
+              {/* 해석 문장 */}
+              <div style={{background:"rgba(255,255,255,0.06)",borderRadius:8,padding:"8px 12px",marginTop:8}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",lineHeight:1.6}}>
+                  {r <= -0.4
+                    ? `📉 비온날 비율이 높은 달일수록 월 매출이 뚜렷하게 줄어듭니다. 장마·봄비 시즌 대비 전략이 필요합니다.`
+                    : r <= -0.1
+                    ? `🌂 비온날 비율이 높으면 월 매출이 소폭 감소하는 경향이 있습니다.`
+                    : r >= 0.1
+                    ? `📈 비온날 비율과 매출 사이에 양의 상관이 나타납니다. (예: 실내 작업 비중 확인 권장)`
+                    : `➡️ 비온날 비율과 월 매출 사이에 뚜렷한 상관관계가 없습니다.`}
+                </div>
+              </div>
+            </div>
+
+            {/* 월별 이중 차트: 비율 바 + 매출 라인 */}
+            <div style={{background:"#f8fafc",borderRadius:12,padding:"14px 12px",marginBottom:12,
+              border:"1px solid #e2e8f0"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:10,letterSpacing:0.5}}>
+                월별 비온날 비율 & 매출 총액 — {selYear}년
+              </div>
+
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                <div style={{minWidth:340,position:"relative"}}>
+                  {/* 매출 라인 차트 영역 */}
+                  <div style={{height:90,position:"relative",marginBottom:0}}>
+                    {/* 수평 가이드선 3개 */}
+                    {[0,0.5,1].map(f=>(
+                      <div key={f} style={{position:"absolute",left:0,right:0,
+                        bottom:`${f*80}px`,
+                        borderBottom:`1px dashed rgba(0,0,0,${f===0?"0.1":"0.04"})`}}/>
+                    ))}
+                    {/* SVG 라인 + 포인트 */}
+                    <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible"}}>
+                      <defs>
+                        <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3"/>
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      {(()=>{
+                        const W=100/12; // % per month
+                        const pts=months.map((m,i)=>{
+                          const x=`${W*i+W/2}%`;
+                          const y= m.rev!==null ? `${(1-m.rev/maxRev)*78+4}px` : null;
+                          return {x,y,m,i};
+                        }).filter(p=>p.y!==null);
+
+                        if(pts.length<2) return null;
+
+                        // polyline path
+                        const pathD = pts.map((p,i)=>`${i===0?"M":"L"} ${p.x} ${p.y}`).join(" ");
+                        const areaD = pathD
+                          + ` L ${pts[pts.length-1].x} 90px`
+                          + ` L ${pts[0].x} 90px Z`;
+
+                        return(
+                          <>
+                            <path d={areaD.replace(/px/g,"")} fill="url(#lineGrad)" opacity="0.4"/>
+                            <polyline points={pts.map(p=>`${p.x.replace("%","")}% ${p.y.replace("px","")}`).join(" ")}
+                              fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round"/>
+                            {pts.map(p=>(
+                              <circle key={p.i} cx={p.x} cy={p.y.replace("px","")}
+                                r="3" fill="#6366f1" stroke="#fff" strokeWidth="1.5"/>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </svg>
+                  </div>
+
+                  {/* 비온날 비율 바 + 레이블 */}
+                  <div style={{display:"flex",gap:2,alignItems:"flex-end",marginTop:4}}>
+                    {months.map(m=>{
+                      const hasData = m.rainRatio!==null;
+                      const pct = hasData ? m.rainRatio*100 : 0;
+                      // 비율에 따라 색상 그라디언트
+                      const barColor = pct >= 40 ? "#3b82f6"
+                        : pct >= 20 ? "#60a5fa"
+                        : "#bfdbfe";
+                      return(
+                        <div key={m.month} style={{flex:1,display:"flex",flexDirection:"column",
+                          alignItems:"center",gap:2}}>
+                          {/* 비율 수치 */}
+                          <div style={{fontSize:8,color: hasData?"#475569":"#e2e8f0",
+                            fontWeight:700,height:12,lineHeight:"12px"}}>
+                            {hasData ? `${Math.round(pct)}%` : ""}
+                          </div>
+                          {/* 비율 바 (최대 36px) */}
+                          <div style={{width:"70%",height:36,background:"#e2e8f0",
+                            borderRadius:"3px 3px 0 0",position:"relative",overflow:"hidden"}}>
+                            <div style={{
+                              position:"absolute",bottom:0,left:0,right:0,
+                              height:`${hasData ? pct : 0}%`,
+                              background:barColor,
+                              borderRadius:"3px 3px 0 0",
+                              transition:"height 0.6s ease"
+                            }}/>
+                          </div>
+                          {/* 월 레이블 */}
+                          <div style={{fontSize:8,color:"#94a3b8",marginTop:1}}>{m.month}월</div>
+                          {/* 비온날수 */}
+                          {hasData&&(
+                            <div style={{fontSize:7,color:"#cbd5e1"}}>{m.rainDays}일</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 범례 */}
+              <div style={{display:"flex",gap:14,marginTop:10,justifyContent:"center",flexWrap:"wrap"}}>
+                {[["#6366f1","월 매출 총액 (선)"],["#3b82f6","비온날 비율 (막대)"]].map(([c,l])=>(
+                  <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+                    <div style={{width:14,height:4,borderRadius:2,background:c}}/>
+                    <span style={{fontSize:9,color:"#64748b"}}>{l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 비 많은 달 / 적은 달 TOP3 비교 */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+              {/* 비 많은 달 TOP3 */}
+              <div style={{background:"#eff6ff",borderRadius:10,padding:"12px 10px",
+                border:"1px solid #bfdbfe"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#1e40af",marginBottom:8}}>
+                  🌧 비 많은 달 TOP 3
+                </div>
+                {topRain.map((p,i)=>(
+                  <div key={p.ym} style={{marginBottom:i<2?7:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                      <span style={{fontSize:10,color:"#1e3a5f",fontWeight:600}}>
+                        {p.ym.replace("-",".")}
+                      </span>
+                      <span style={{fontSize:10,color:"#3b82f6",fontWeight:700}}>
+                        {Math.round(p.rainRatio*100)}% ({p.rainDays}/{p.totalDays}일)
+                      </span>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:800,color:"#1e293b"}}>
+                      {formatKRW(p.rev)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* 비 적은 달 TOP3 */}
+              <div style={{background:"#fefce8",borderRadius:10,padding:"12px 10px",
+                border:"1px solid #fde047"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#78350f",marginBottom:8}}>
+                  ☀️ 맑은 달 TOP 3
+                </div>
+                {topClear.map((p,i)=>(
+                  <div key={p.ym} style={{marginBottom:i<2?7:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                      <span style={{fontSize:10,color:"#78350f",fontWeight:600}}>
+                        {p.ym.replace("-",".")}
+                      </span>
+                      <span style={{fontSize:10,color:"#ca8a04",fontWeight:700}}>
+                        {Math.round(p.rainRatio*100)}% ({p.rainDays}/{p.totalDays}일)
+                      </span>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:800,color:"#1e293b"}}>
+                      {formatKRW(p.rev)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 평균 요약 */}
+            <div style={{display:"flex",gap:8}}>
+              <div style={{flex:1,background:"#f1f5f9",borderRadius:8,padding:"9px 12px",
+                border:"1px solid #e2e8f0",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,marginBottom:3}}>월평균 비온날 비율</div>
+                <div style={{fontSize:15,fontWeight:900,color:"#3b82f6"}}>
+                  {Math.round(avgRainRatio*100)}%
+                </div>
+              </div>
+              <div style={{flex:1,background:"#f1f5f9",borderRadius:8,padding:"9px 12px",
+                border:"1px solid #e2e8f0",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,marginBottom:3}}>월평균 매출 총액</div>
+                <div style={{fontSize:15,fontWeight:900,color:"#6366f1"}}>
+                  {formatKRW(Math.round(avgRev))}
+                </div>
+              </div>
+              <div style={{flex:1,background:"#f1f5f9",borderRadius:8,padding:"9px 12px",
+                border:"1px solid #e2e8f0",textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#94a3b8",fontWeight:600,marginBottom:3}}>분석 월수</div>
+                <div style={{fontSize:15,fontWeight:900,color:"#1e293b"}}>
+                  {pairs.length}개월
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -1231,7 +1994,7 @@ function ServiceSearch({services,setServices}){
 }
 
 // ── 빠른 예약 모달 ──────────────────────────────────────
-function QuickBookModal({customers,onSave,onClose}){
+function QuickBookModal({customers,onSave,onClose,isAdmin=true}){
   const [step,setStep]=useState(1);
   const [query,setQuery]=useState("");
   const [selCust,setSelCust]=useState(null);
@@ -1258,7 +2021,8 @@ function QuickBookModal({customers,onSave,onClose}){
   },[query,customers]);
 
   function handleSave(){
-    if(!selCust||!services.length||!amount)return alert("고객·작업내용·금액을 입력해주세요.");
+    if(!selCust||!services.length)return alert("고객과 작업내용을 입력해주세요.");
+    if(isAdmin&&!amount)return alert("금액을 입력해주세요.");
     onSave({
       customerId:String(selCust.id),date,slot,multiDay:1,
       services,payment,
@@ -1380,7 +2144,7 @@ function QuickBookModal({customers,onSave,onClose}){
               </div>
 
               <div style={{marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>💰 금액</div>
+                {isAdmin&&<div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:7}}>💰 금액</div>}
                 <input type="number" value={amount} onChange={e=>setAmount(e.target.value)}
                   placeholder="예: 130000" style={iStyle}/>
                 <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:7}}>
@@ -1446,10 +2210,11 @@ function NF({label,children}){
 }
 
 // ── 예약 모달 ─────────────────────────────────────────
-function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
+function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer,isAdmin=true}){
   const isAD=modal.slot==="종일";
   const isExtra=modal.slot==="추가";
   const ex=modal.record;
+  const [editDate,setEditDate]=useState(ex?.date||modal.date); // 날짜 수정 가능
   const [slotType,setSlotType]=useState(isAD?"종일":isExtra?"추가":"시간");
   const [slotTime,setSlotTime]=useState(isAD||isExtra?null:(ex?.slot||modal.slot));
   const [multiDay,setMultiDay]=useState(Number(ex?.multiDay)||1);
@@ -1489,10 +2254,11 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
   const toggle=s=>setServices(p=>p.includes(s)?p.filter(x=>x!==s):[...p,s]);
 
   function handleSave(){
-    if(!custId||!services.length||!amount)return alert("고객, 작업내용, 가격을 입력해주세요.");
+    if(!custId||!services.length)return alert("고객과 작업내용을 입력해주세요.");
+    if(isAdmin&&!amount)return alert("금액을 입력해주세요.");
     const fs=slotType==="종일"?"종일":slotType==="추가"?"추가":slotTime;
     if(slotType==="시간"&&!fs)return alert("시간을 선택해주세요.");
-    onSave({id:ex?.id,customerId:String(custId),date:modal.date,slot:fs,multiDay:slotType==="종일"?multiDay:1,services,payment,amount:Number(amount),memo,carModel:selectedCar,bookingType});
+    onSave({id:ex?.id,customerId:String(custId),date:editDate,slot:fs,multiDay:slotType==="종일"?multiDay:1,services,payment,amount:Number(amount),memo,carModel:selectedCar,bookingType});
   }
 
   const iStyle={width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",background:"#fff",color:"#0f172a",fontFamily:"'Noto Sans KR',sans-serif"};
@@ -1508,7 +2274,13 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
         </div>
 
         <NF label="📅 예약날짜">
-          <div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{modal.date.replace(/-/g,".")} · {WD(modal.date)}</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}
+              style={{flex:1,padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,
+                fontSize:14,fontWeight:700,color:"#1e293b",background:"#fff",
+                fontFamily:"'Noto Sans KR',sans-serif",boxSizing:"border-box"}}/>
+            <span style={{fontSize:13,color:"#64748b",flexShrink:0}}>{WD(editDate)}요일</span>
+          </div>
         </NF>
 
         <NF label="⏰ 예약시간">
@@ -1535,7 +2307,7 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
                 ))}
               </div>
               {multiDay>1&&<div style={{background:"#fef2f2",borderRadius:7,padding:"7px 10px",fontSize:11,color:"#dc2626",fontWeight:600,marginTop:8,border:"1px solid #fecaca"}}>
-                {modal.date.replace(/-/g,".")}({WD(modal.date)}) ~ {addDays(modal.date,multiDay-1).replace(/-/g,".")}({WD(addDays(modal.date,multiDay-1))}) · {multiDay}일
+                {editDate.replace(/-/g,".")}({WD(editDate)}) ~ {addDays(editDate,multiDay-1).replace(/-/g,".")}({WD(addDays(editDate,multiDay-1))}) · {multiDay}일
               </div>}
             </div>
           )}
@@ -1601,10 +2373,12 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
           <ServiceSearch services={services} setServices={setServices}/>
         </NF>
 
+        {isAdmin&&(
         <NF label="💰 가격">
           <input type="number" placeholder="예: 80000" value={amount} onChange={e=>setAmount(e.target.value)} style={iStyle}/>
           {amount&&<div style={{fontSize:12,color:"#1e293b",fontWeight:700,marginTop:5}}>{formatKRW(amount)}</div>}
         </NF>
+        )}
 
         <NF label="🏷️ 예약구분">
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -1623,11 +2397,13 @@ function BookingModal({modal,customers,onSave,onDelete,onClose,onAddCustomer}){
           </div>
         </NF>
 
+        {isAdmin&&(
         <NF label="💳 결제">
           <div style={{display:"flex",gap:7}}>
             {PAYMENTS.map(p=><button key={p} onClick={()=>setPayment(p)} style={chip(payment===p)}>{p}</button>)}
           </div>
         </NF>
+        )}
 
         <NF label="📝 비고">
           <textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항..."
@@ -1716,25 +2492,50 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
 // ── 대시보드 컴포넌트 ─────────────────────────────────
 function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBookingModal,setCustModal}){
   const today=todayStr();
-  const now=new Date();
-  const tm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  // ── 선택 날짜 (좌우 이동) ──────────────────────────────
+  const [selDay,setSelDay]=useState(today);
+  const selDate=new Date(selDay);
+  const selDt=selDay;
+  const selYM=selDay.slice(0,7);
 
-  const todayRecs=useMemo(()=>records.filter(r=>r.date===today),[records,today]);
-  const monthRecs=useMemo(()=>records.filter(r=>r.date.startsWith(tm)),[records,tm]);
-  const todayAmt=todayRecs.reduce((s,r)=>s+Number(r.amount),0);
+  // ── 미니 캘린더 표시 여부 ──────────────────────────────
+  const [showMini,setShowMini]=useState(false);
+  const [miniY,setMiniY]=useState(selDate.getFullYear());
+  const [miniM,setMiniM]=useState(selDate.getMonth());
+
+  // 날짜 이동할 때 미니캘린더 년월도 동기화
+  useEffect(()=>{
+    setMiniY(new Date(selDay).getFullYear());
+    setMiniM(new Date(selDay).getMonth());
+  },[selDay]);
+
+  // ── 선택일 데이터 ──────────────────────────────────────
+  const dayRecs=useMemo(()=>records.filter(r=>{
+    if(r.slot==="종일") return spanDates(r.date,r.multiDay||1).includes(selDt);
+    return r.date===selDt;
+  }),[records,selDt]);
+  const monthRecs=useMemo(()=>records.filter(r=>r.date.startsWith(selYM)),[records,selYM]);
+  const dayAmt=dayRecs.reduce((s,r)=>s+Number(r.amount),0);
   const monthAmt=monthRecs.reduce((s,r)=>s+Number(r.amount),0);
-
-  // 최근 7일 예약
-  const weekDates=getWeekDates(today);
-  const recent=useMemo(()=>
-    [...records].filter(r=>r.date>=weekDates[0]&&r.date<=weekDates[6])
-      .sort((a,b)=>b.date.localeCompare(a.date)||0).slice(0,10)
-  ,[records,today]);
-
-  // 오늘 슬롯별 예약
-  const slots=["10:00","13:00","16:00"];
   const slotOrder={"종일":0,"10:00":1,"13:00":2,"16:00":3,"추가":4};
-  const todaySorted=[...todayRecs].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
+  const daySorted=[...dayRecs].sort((a,b)=>(slotOrder[a.slot]??5)-(slotOrder[b.slot]??5));
+
+  // ── 미니 캘린더 데이터 ────────────────────────────────
+  const miniDays=useMemo(()=>getDays(miniY,miniM),[miniY,miniM]);
+  // 날짜별 예약 건수 map
+  const dayCountMap=useMemo(()=>{
+    const m={};
+    records.forEach(r=>{
+      const d=r.date;
+      m[d]=(m[d]||0)+1;
+    });
+    return m;
+  },[records]);
+
+  // ── 헬퍼 ─────────────────────────────────────────────
+  const isToday=selDt===today;
+  const WDay=["일","월","화","수","목","금","토"][selDate.getDay()];
+  const dateLabel=`${selDate.getFullYear()}.${String(selDate.getMonth()+1).padStart(2,"0")}.${String(selDate.getDate()).padStart(2,"0")} (${WDay})`;
 
   const StatCard=({label,value,sub,gradient,icon})=>(
     <div className="stat-card" style={{background:gradient,position:"relative",overflow:"hidden"}}>
@@ -1747,48 +2548,160 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
 
   return(
     <div style={{animation:"fadeUp 0.3s ease"}}>
-      {/* 날짜 헤더 */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:13,color:"#94a3b8",fontWeight:500}}>{now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일 ({["일","월","화","수","목","금","토"][now.getDay()]})</div>
-        <div style={{fontSize:22,fontWeight:800,color:"#1e293b",marginTop:2}}>👋 오늘도 좋은 하루!</div>
+
+      {/* ── 날짜 네비게이터 ── */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:14,position:"relative"}}>
+        <button onClick={()=>setSelDay(d=>addDays(d,-1))}
+          style={{width:34,height:34,borderRadius:"50%",border:"1.5px solid #e2e8f0",background:"#fff",
+            color:"#1e293b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+            fontWeight:700,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",flexShrink:0}}>‹</button>
+
+        <button onClick={()=>setShowMini(v=>!v)}
+          style={{background:"none",border:"none",cursor:"pointer",textAlign:"center",padding:"4px 6px",borderRadius:8,
+            transition:"background 0.1s"}}
+          onMouseEnter={e=>e.currentTarget.style.background="#f1f5f9"}
+          onMouseLeave={e=>e.currentTarget.style.background="none"}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:1.5,color:"#1e293b",lineHeight:1}}>
+            {dateLabel}
+          </div>
+          {isToday&&(
+            <div style={{fontSize:10,color:"#6366f1",fontWeight:700,marginTop:2,letterSpacing:0.5}}>● TODAY</div>
+          )}
+        </button>
+
+        <button onClick={()=>setSelDay(d=>addDays(d,1))}
+          style={{width:34,height:34,borderRadius:"50%",border:"1.5px solid #e2e8f0",background:"#fff",
+            color:"#1e293b",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+            fontWeight:700,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",flexShrink:0}}>›</button>
+
+        {!isToday&&(
+          <button onClick={()=>setSelDay(today)}
+            style={{position:"absolute",right:0,fontSize:10,fontWeight:700,color:"#6366f1",
+              background:"#ede9fe",border:"none",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>
+            오늘
+          </button>
+        )}
       </div>
 
-      {/* 스탯 카드 */}
-      <div className="stat-grid">
-        <StatCard label="오늘 입고" value={`${todayRecs.length}대`} sub={`이번달 ${monthRecs.length}대`}
+      {/* ── 미니 캘린더 ── */}
+      {showMini&&(
+        <div style={{background:"#fff",borderRadius:14,border:"1px solid #e2e8f0",
+          boxShadow:"0 4px 16px rgba(0,0,0,0.08)",marginBottom:14,overflow:"hidden",
+          animation:"fadeUp 0.18s ease"}}>
+          {/* 캘린더 헤더 */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+            padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:"#1e293b"}}>
+            <button onClick={()=>{if(miniM===0){setMiniY(y=>y-1);setMiniM(11);}else setMiniM(m=>m-1);}}
+              style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",fontSize:16,cursor:"pointer",
+                padding:"2px 6px",borderRadius:5,fontWeight:700}}>‹</button>
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:"#fff",letterSpacing:1.5}}>
+              {miniY}.{String(miniM+1).padStart(2,"0")}
+            </span>
+            <button onClick={()=>{if(miniM===11){setMiniY(y=>y+1);setMiniM(0);}else setMiniM(m=>m+1);}}
+              style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",fontSize:16,cursor:"pointer",
+                padding:"2px 6px",borderRadius:5,fontWeight:700}}>›</button>
+          </div>
+          {/* 요일 헤더 */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",padding:"6px 8px 0"}}>
+            {["일","월","화","수","목","금","토"].map((d,i)=>(
+              <div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,
+                color:i===0?"#ef4444":i===6?"#3b82f6":"#94a3b8",padding:"3px 0"}}>{d}</div>
+            ))}
+          </div>
+          {/* 날짜 그리드 */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",padding:"0 8px 10px",gap:2}}>
+            {miniDays.map((d,i)=>{
+              if(!d) return <div key={`e${i}`}/>;
+              const ds=`${miniY}-${String(miniM+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+              const isSel=ds===selDt;
+              const isTod=ds===today;
+              const cnt=dayCountMap[ds]||0;
+              const dow=new Date(ds).getDay();
+              return(
+                <button key={ds} onClick={()=>{setSelDay(ds);setShowMini(false);}}
+                  style={{
+                    position:"relative",display:"flex",flexDirection:"column",alignItems:"center",
+                    justifyContent:"center",aspectRatio:"1",borderRadius:8,border:"none",cursor:"pointer",
+                    fontSize:11,fontWeight:isSel?800:isTod?700:500,
+                    background:isSel?"#1e293b":isTod?"#ede9fe":"transparent",
+                    color:isSel?"#fff":isTod?"#6366f1":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155",
+                    transition:"background 0.12s",padding:"2px 0",
+                  }}
+                  onMouseEnter={e=>{if(!isSel)e.currentTarget.style.background="#f1f5f9";}}
+                  onMouseLeave={e=>{if(!isSel)e.currentTarget.style.background=isTod?"#ede9fe":"transparent";}}>
+                  {d}
+                  {cnt>0&&(
+                    <div style={{
+                      width:cnt>=3?18:cnt===2?12:6,height:4,borderRadius:3,marginTop:1,
+                      background:isSel?"rgba(255,255,255,0.6)":cnt>=3?"#f59e0b":cnt===2?"#6366f1":"#22c55e",
+                    }}/>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {/* 범례 */}
+          <div style={{display:"flex",gap:10,padding:"0 14px 10px",justifyContent:"flex-end"}}>
+            {[["#22c55e","1건"],["#6366f1","2건"],["#f59e0b","3건+"]].map(([c,l])=>(
+              <div key={l} style={{display:"flex",alignItems:"center",gap:3}}>
+                <div style={{width:10,height:4,borderRadius:2,background:c}}/>
+                <span style={{fontSize:9,color:"#94a3b8"}}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 스탯 카드 ── */}
+      <div className="stat-grid" style={{marginBottom:14}}>
+        <StatCard label={isToday?"오늘 입고":"당일 입고"} value={`${dayRecs.length}대`}
+          sub={`${selYM.replace("-",".")} 월 ${monthRecs.length}대`}
           gradient="linear-gradient(135deg,#667eea,#764ba2)" icon="🚗"/>
-        <StatCard label="오늘 매출" value={formatKRW(todayAmt)} sub={`이번달 ${formatKRW(monthAmt)}`}
+        <StatCard label={isToday?"오늘 매출":"당일 매출"} value={formatKRW(dayAmt)}
+          sub={`월 ${formatKRW(monthAmt)}`}
           gradient="linear-gradient(135deg,#f093fb,#f5576c)" icon="💰"/>
-        <StatCard label="현금" value={formatKRW(todayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0))}
-          sub="오늘 현금 수입" gradient="linear-gradient(135deg,#4facfe,#00f2fe)" icon="💵"/>
-        <StatCard label="카드" value={formatKRW(todayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0))}
-          sub="오늘 카드 수입" gradient="linear-gradient(135deg,#43e97b,#38f9d7)" icon="💳"/>
+        <StatCard label="현금"
+          value={formatKRW(dayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0))}
+          sub="당일 현금" gradient="linear-gradient(135deg,#4facfe,#00f2fe)" icon="💵"/>
+        <StatCard label="카드"
+          value={formatKRW(dayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0))}
+          sub="당일 카드" gradient="linear-gradient(135deg,#43e97b,#38f9d7)" icon="💳"/>
       </div>
 
-      {/* 2단 분할 - 모바일에서 1단으로 자동 변환 */}
+      {/* ── 예약 현황 + 월 요약 ── */}
       <div className="dash-grid">
-        {/* 오늘 예약 현황 */}
+        {/* 선택일 예약 */}
         <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>📅 오늘 예약 현황</div>
-            <button onClick={()=>onAddBooking(today)}
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>
+              📅 {isToday?"오늘":"당일"} 예약
+              {daySorted.length>0&&<span style={{fontSize:11,color:"#94a3b8",marginLeft:6,fontWeight:500}}>{daySorted.length}건</span>}
+            </div>
+            <button onClick={()=>onAddBooking(selDt)}
               style={{background:"#1e293b",color:"#fff",border:"none",borderRadius:7,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>
               + 추가
             </button>
           </div>
-          {todaySorted.length===0?(
+          {daySorted.length===0?(
             <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1"}}>
               <div style={{fontSize:24,marginBottom:8}}>📋</div>
-              <div style={{fontSize:13}}>오늘 예약이 없습니다</div>
+              <div style={{fontSize:13}}>예약이 없습니다</div>
+              <button onClick={()=>onAddBooking(selDt)}
+                style={{marginTop:10,fontSize:11,color:"#6366f1",background:"#ede9fe",border:"none",
+                  borderRadius:7,padding:"5px 14px",cursor:"pointer",fontWeight:700}}>
+                등록하기
+              </button>
             </div>
           ):(
-            todaySorted.map(rec=>{
+            daySorted.map(rec=>{
               const cust=getCustomer(rec.customerId);
               const ac=amtColor(rec.amount,cust?.bookingType);
               const ss=SC_STYLE[rec.slot]||SC_STYLE["추가"];
               return(
-                <div key={rec.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"9px 10px",
-                  borderRadius:10,marginBottom:6,background:ac.bg,border:`1px solid ${ac.border}`}}>
+                <div key={rec.id}
+                  onClick={()=>setBookingModal({date:rec.date,slot:rec.slot,record:rec})}
+                  style={{display:"flex",alignItems:"flex-start",gap:8,padding:"9px 10px",
+                    borderRadius:10,marginBottom:6,background:ac.bg,border:`1px solid ${ac.border}`,cursor:"pointer"}}>
                   <span style={{fontSize:9,fontWeight:700,background:ss.bg,color:ss.text,
                     padding:"2px 5px",borderRadius:5,border:`1px solid ${ss.border}`,
                     flexShrink:0,minWidth:38,textAlign:"center",marginTop:1}}>
@@ -1813,42 +2726,234 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
           )}
         </div>
 
-        {/* 최근 작업 내역 */}
+        {/* 월간 요약 */}
         <div style={{background:"#fff",borderRadius:14,padding:"16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>🔧 최근 작업 내역</div>
-            <button onClick={()=>setTab("customers")}
-              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
-              전체보기
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>
+              📊 {selYM.replace("-",".")} 월간 요약
+            </div>
+            <button onClick={()=>setTab("analytics")}
+              style={{background:"none",border:"1px solid #e2e8f0",color:"#475569",borderRadius:7,
+                padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
+              분석보기
             </button>
           </div>
-          {recent.length===0?(
-            <div style={{textAlign:"center",padding:"30px 0",color:"#cbd5e1",fontSize:13}}>작업 내역 없음</div>
-          ):(
-            recent.map(rec=>{
-              const cust=getCustomer(rec.customerId);
-              const ac=amtColor(rec.amount,cust?.bookingType);
-              return(
-                <div key={rec.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",
-                  borderBottom:"1px solid #f1f5f9"}}>
-                  <div style={{width:7,height:7,borderRadius:"50%",background:ac.border,flexShrink:0}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{fontWeight:600,fontSize:12,color:"#1e293b",
-                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100px"}}>
-                        {cust?.name||cust?.phone||"미등록"}
-                      </span>
-                      <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>{rec.date.slice(5).replace("-",".")}</span>
+
+          {/* 월 매출 게이지 */}
+          {(()=>{
+            const now2=new Date();
+            const isCurMo=(selYM===`${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,"0")}`);
+            const dim=new Date(new Date(selYM+"-01").getFullYear(),new Date(selYM+"-01").getMonth()+1,0).getDate();
+            const pct=isCurMo?Math.round((now2.getDate()/dim)*100):100;
+            const cashAmt=monthRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount),0);
+            const cardAmt=monthRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount),0);
+            const byType={};
+            monthRecs.forEach(r=>{
+              const c=getCustomer(r.customerId);
+              const bt=c?.bookingType||"기타";
+              byType[bt]=(byType[bt]||0)+1;
+            });
+            return(
+              <>
+                <div style={{background:"linear-gradient(135deg,#1e293b,#334155)",borderRadius:12,
+                  padding:"14px 16px",marginBottom:12}}>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",marginBottom:6,fontWeight:600}}>
+                    MONTHLY REVENUE
+                  </div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",
+                    letterSpacing:1,marginBottom:10}}>{formatKRW(monthAmt)}</div>
+                  <div style={{height:5,background:"rgba(255,255,255,0.15)",borderRadius:3,marginBottom:5}}>
+                    <div style={{height:5,background:"linear-gradient(90deg,#6366f1,#a78bfa)",
+                      borderRadius:3,width:`${pct}%`,transition:"width 0.5s"}}/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}>
+                    <span style={{color:"rgba(255,255,255,0.5)"}}>입고 {monthRecs.length}대</span>
+                    <span style={{color:"rgba(255,255,255,0.5)"}}>{pct}% {isCurMo?"경과":"완료"}</span>
+                  </div>
+                </div>
+
+                {/* 현금/카드 */}
+                <div style={{display:"flex",gap:8,marginBottom:12}}>
+                  {[[cashAmt,"현금","#0ea5e9","#e0f2fe"],[cardAmt,"카드","#8b5cf6","#ede9fe"]].map(([amt,lbl,c,bg])=>(
+                    <div key={lbl} style={{flex:1,background:bg,borderRadius:10,padding:"10px 12px",border:`1px solid ${c}22`}}>
+                      <div style={{fontSize:10,color:c,fontWeight:700,marginBottom:3}}>{lbl}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>{formatKRW(amt)}</div>
+                      <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>
+                        {monthAmt>0?Math.round(amt/monthAmt*100):0}%
+                      </div>
                     </div>
-                    <div style={{fontSize:11,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {(rec.services||[]).join(", ")}
+                  ))}
+                </div>
+
+                {/* 예약구분 */}
+                {Object.keys(byType).length>0&&(
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",marginBottom:7,letterSpacing:0.5}}>예약구분</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([bt,cnt])=>{
+                        const btc=BT[bt]||BT["신규"];
+                        return(
+                          <span key={bt} style={{fontSize:10,fontWeight:700,background:btc.bg,color:btc.color,
+                            padding:"2px 8px",borderRadius:6,border:`1px solid ${btc.border}`}}>
+                            {bt} {cnt}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
-                  <div style={{fontSize:11,fontWeight:700,color:ac.text,flexShrink:0}}>{formatKRW(rec.amount)}</div>
-                </div>
-              );
-            })
-          )}
+                )}
+              </>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 권한 상수 ─────────────────────────────────────────
+const AUTH_KEY = "gmenic_auth_session";
+const AUTH_DOC = "settings/auth";
+
+// ── 로그인 화면 ───────────────────────────────────────
+function LoginScreen({db, onLogin}){
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+
+  async function handleLogin(){
+    if(!pw.trim()){ setErr("비밀번호를 입력해주세요."); return; }
+    setLoading(true); setErr("");
+    try{
+      let role = null;
+      if(db){
+        const doc = await db.collection("settings").doc("auth").get();
+        if(doc.exists){
+          const d = doc.data();
+          if(pw === d.admin_pw) role = "admin";
+          else if(pw === d.staff_pw) role = "staff";
+        } else {
+          // 문서 없으면 최초 설정: 기본 비번 "1234" = 관리자
+          if(pw === "1234") role = "admin";
+        }
+      } else {
+        if(pw === "1234") role = "admin";
+      }
+      if(role){
+        const session = {role, loginAt: Date.now()};
+        localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+        onLogin(role);
+      } else {
+        setErr("비밀번호가 올바르지 않습니다.");
+      }
+    } catch(e){
+      setErr("오류: " + e.message);
+    }
+    setLoading(false);
+  }
+
+  return(
+    <div className="login-wrap">
+      <div className="login-card">
+        {/* 로고 */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:36,letterSpacing:4,color:"#fff"}}>G-MENIC</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:2,marginTop:4}}>CAR CARE CRM</div>
+        </div>
+        {/* 입력 */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:8,letterSpacing:1}}>비밀번호</div>
+          <div style={{position:"relative"}}>
+            <input
+              className="login-inp"
+              type={showPw?"text":"password"}
+              placeholder="비밀번호 입력"
+              value={pw}
+              onChange={e=>{setPw(e.target.value);setErr("");}}
+              onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+              autoFocus
+            />
+            <button onClick={()=>setShowPw(v=>!v)}
+              style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",
+                background:"none",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:16}}>
+              {showPw?"🙈":"👁"}
+            </button>
+          </div>
+        </div>
+        {err&&<div style={{fontSize:12,color:"#f87171",marginBottom:10,textAlign:"center"}}>{err}</div>}
+        <button className="login-btn" onClick={handleLogin} disabled={loading}>
+          {loading?"확인 중...":"로그인"}
+        </button>
+        <div style={{textAlign:"center",marginTop:20,fontSize:11,color:"rgba(255,255,255,0.25)"}}>
+          G-MENIC CRM · 해운대 중동
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 관리자 설정 모달 (비밀번호 변경) ─────────────────────
+function AuthSettingsModal({db, onClose}){
+  const [adminPw, setAdminPw] = useState("");
+  const [staffPw, setStaffPw] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function handleSave(){
+    if(!adminPw || !staffPw){ setMsg("모든 비밀번호를 입력해주세요."); return; }
+    if(adminPw === staffPw){ setMsg("관리자/직원 비밀번호를 다르게 설정해주세요."); return; }
+    if(adminPw.length < 4 || staffPw.length < 4){ setMsg("비밀번호는 4자리 이상이어야 합니다."); return; }
+    setSaving(true);
+    try{
+      if(db) await db.collection("settings").doc("auth").set({admin_pw:adminPw, staff_pw:staffPw});
+      setMsg("✅ 저장되었습니다!");
+      setTimeout(onClose, 1200);
+    } catch(e){ setMsg("오류: " + e.message); }
+    setSaving(false);
+  }
+
+  const iStyle={width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,
+    fontSize:13,boxSizing:"border-box",background:"#fff",color:"#0f172a",
+    fontFamily:"'Noto Sans KR',sans-serif",marginTop:6};
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",zIndex:500,
+      display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:16,padding:28,width:"100%",maxWidth:400,
+        boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,
+          color:"#1e293b",marginBottom:20}}>🔐 비밀번호 설정</div>
+
+        <div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",marginBottom:16,
+          fontSize:12,color:"#64748b",lineHeight:1.7}}>
+          <div>👑 <strong>관리자</strong>: 모든 기능 사용 가능</div>
+          <div>👤 <strong>직원</strong>: 캘린더·고객만 사용 (금액·분석 비공개)</div>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#475569"}}>관리자 비밀번호</div>
+          <input style={iStyle} type="password" placeholder="관리자 비밀번호 (4자리 이상)"
+            value={adminPw} onChange={e=>setAdminPw(e.target.value)}/>
+        </div>
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#475569"}}>직원 비밀번호</div>
+          <input style={iStyle} type="password" placeholder="직원 비밀번호 (4자리 이상)"
+            value={staffPw} onChange={e=>setStaffPw(e.target.value)}/>
+        </div>
+
+        {msg&&<div style={{fontSize:12,color:msg.startsWith("✅")?"#16a34a":"#dc2626",
+          marginBottom:12,textAlign:"center"}}>{msg}</div>}
+
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onClose}
+            style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:8,
+              background:"#fff",color:"#64748b",fontSize:13,fontWeight:700,cursor:"pointer"}}>취소</button>
+          <button onClick={handleSave} disabled={saving}
+            style={{flex:2,padding:"11px",border:"none",borderRadius:8,
+              background:"#1e293b",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            {saving?"저장 중...":"저장"}
+          </button>
         </div>
       </div>
     </div>
@@ -1858,6 +2963,26 @@ function Dashboard({records,customers,getCustomer,onAddBooking,setTab,setBooking
 function App(){
   const db=window.__db;
   const {customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord}=useData(db);
+
+  // ── 인증 상태 ─────────────────────────────────────────
+  const [role, setRole] = useState(()=>{
+    try{
+      const s = localStorage.getItem(AUTH_KEY);
+      if(s){ const p=JSON.parse(s); if(p.role) return p.role; }
+    }catch(e){}
+    return null;
+  });
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const isAdmin = role === "admin";
+
+  function handleLogout(){
+    localStorage.removeItem(AUTH_KEY);
+    setRole(null);
+  }
+
+  // 미로그인 → 로그인 화면
+  if(!role) return <LoginScreen db={db} onLogin={r=>setRole(r)}/>;
+
   const [tab,setTab]=useState("dashboard");
   const [sideOpen,setSideOpen]=useState(false); // 모바일 사이드바
   const [selDate,setSelDate]=useState(todayStr());
@@ -1870,6 +2995,46 @@ function App(){
   const [dayPopup,setDayPopup]=useState(null);
   const [quickBook,setQuickBook]=useState(false);
   const closeSales=useCallback(()=>setShowSales(false),[]);
+
+  // ── 모바일 뒤로가기 핸들러 ─────────────────────────────
+  const stateRef = useRef({});
+  useEffect(()=>{
+    stateRef.current = {tab,sideOpen,bookingModal,custModal,dayPopup,quickBook,showSales};
+  });
+
+  useEffect(()=>{
+    // 초기 더미 스택 2개 쌓기 (대시보드 진입 시 여유분 확보)
+    window.history.pushState({gmenic:1},"","");
+    window.history.pushState({gmenic:2},"","");
+
+    const handlePop = (e)=>{
+      const s = stateRef.current;
+      // 열린 레이어 우선 닫기
+      if(s.bookingModal){ setBookingModal(null); window.history.pushState({gmenic:2},"",""); return; }
+      if(s.custModal)   { setCustModal(null);    window.history.pushState({gmenic:2},"",""); return; }
+      if(s.dayPopup)    { setDayPopup(null);     window.history.pushState({gmenic:2},"",""); return; }
+      if(s.quickBook)   { setQuickBook(false);   window.history.pushState({gmenic:2},"",""); return; }
+      if(s.sideOpen)    { setSideOpen(false);    window.history.pushState({gmenic:2},"",""); return; }
+      if(s.showSales)   { setShowSales(false);   window.history.pushState({gmenic:2},"",""); return; }
+      // 대시보드 아닌 탭 → 대시보드
+      if(s.tab !== "dashboard"){
+        setTab("dashboard");
+        window.history.pushState({gmenic:2},"","");
+        return;
+      }
+      // 대시보드에서 → 종료 확인 토스트
+      window.history.pushState({gmenic:2},"",""); // 스택 복구 먼저
+      setExitToast(true);
+      if(exitToastTimer.current) clearTimeout(exitToastTimer.current);
+      exitToastTimer.current = setTimeout(()=>setExitToast(false), 2500);
+    };
+
+    window.addEventListener("popstate", handlePop);
+    return ()=>{ window.removeEventListener("popstate", handlePop); };
+  },[]);
+
+  const [exitToast, setExitToast] = useState(false);
+  const exitToastTimer = useRef(null);
 
   function goPrev(){
     if(view==="week"){setSelDate(d=>addDays(d,-7));return;}
@@ -1956,11 +3121,12 @@ function App(){
     </div>
   );
 
+  // 직원은 analytics 탭 숨김
   const MENU=[
     {id:"dashboard",icon:"📊",label:"대시보드"},
     {id:"calendar",icon:"📅",label:"캘린더"},
     {id:"customers",icon:"👥",label:"고객"},
-    {id:"analytics",icon:"📈",label:"분석"},
+    ...(isAdmin?[{id:"analytics",icon:"📈",label:"분석"}]:[]),
   ];
 
   return(
@@ -1972,9 +3138,30 @@ function App(){
         <div className="sidebar-logo">
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,color:"#fff",lineHeight:1}}>G-MENIC</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:3,letterSpacing:1}}>CAR CARE CRM · 해운대</div>
-          <div style={{marginTop:8,display:"flex",alignItems:"center",gap:5}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:connected?"#4ade80":"#f87171",display:"inline-block"}}/>
-            <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{connected?"Firebase 연결됨":"로컬 모드"}</span>
+          <div style={{marginTop:8}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:connected?"#4ade80":"#f87171",display:"inline-block"}}/>
+                <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{connected?"Firebase 연결됨":"로컬 모드"}</span>
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:7}}>
+              <span style={{fontSize:10,fontWeight:700,padding:"2px 9px",borderRadius:8,
+                background:isAdmin?"rgba(251,191,36,0.15)":"rgba(148,163,184,0.15)",
+                color:isAdmin?"#fbbf24":"#94a3b8",border:`1px solid ${isAdmin?"rgba(251,191,36,0.3)":"rgba(148,163,184,0.2)"}`}}>
+                {isAdmin?"👑 관리자":"👤 직원"}
+              </span>
+              <div style={{display:"flex",gap:4}}>
+                {isAdmin&&<button onClick={()=>{setShowAuthModal(true);setSideOpen(false);}}
+                  style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",
+                    color:"rgba(255,255,255,0.45)",borderRadius:6,padding:"3px 8px",
+                    fontSize:10,cursor:"pointer"}}>🔐 설정</button>}
+                <button onClick={()=>{handleLogout();setSideOpen(false);}}
+                  style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",
+                    color:"rgba(255,255,255,0.45)",borderRadius:6,padding:"3px 8px",
+                    fontSize:10,cursor:"pointer"}}>로그아웃</button>
+              </div>
+            </div>
           </div>
         </div>
         <nav className="sidebar-nav">
@@ -1989,17 +3176,13 @@ function App(){
           <button className="nav-item" onClick={()=>{setBookingModal({date:todayStr(),slot:"10:00",record:null});setSideOpen(false);}}>
             <span className="nav-icon">➕</span>예약 등록
           </button>
-          <button className="nav-item"
-            onClick={()=>{setQuickBook(true);setSideOpen(false);}}
-            style={{background:"rgba(99,102,241,0.18)",color:"#a5b4fc",borderLeft:"3px solid #6366f1",borderRadius:8}}>
-            <span className="nav-icon">⚡</span>빠른 예약
-          </button>
+
           <button className="nav-item" onClick={()=>{setCustModal("new");setSideOpen(false);}}>
             <span className="nav-icon">👤</span>신규 고객
           </button>
-          <button className="nav-item" onClick={()=>setShowSales(v=>!v)}>
+          {isAdmin&&<button className="nav-item" onClick={()=>setShowSales(v=>!v)}>
             <span className="nav-icon">💰</span>매출 현황
-          </button>
+          </button>}
         </nav>
         <div style={{padding:"12px 16px",borderTop:"1px solid rgba(255,255,255,0.07)",fontSize:11,color:"rgba(255,255,255,0.35)",textAlign:"center"}}>
           {todayStr().replace(/-/g,".")} {WD(todayStr())}
@@ -2188,16 +3371,30 @@ function App(){
           )}
 
           {/* 분석 */}
-          {tab==="analytics"&&(
+          {tab==="analytics"&&isAdmin&&(
             <AnalyticsTab records={records} customers={customers} getCustomer={getCustomer}/>
           )}
 
         </div>
       </div>
 
+      {/* 비밀번호 설정 모달 */}
+      {showAuthModal&&<AuthSettingsModal db={db} onClose={()=>setShowAuthModal(false)}/>}
+
+      {/* 뒤로가기 종료 토스트 */}
+      {exitToast&&(
+        <div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",
+          background:"rgba(15,23,42,0.88)",color:"#fff",padding:"12px 24px",
+          borderRadius:20,fontSize:13,fontWeight:600,zIndex:9999,
+          boxShadow:"0 4px 20px rgba(0,0,0,0.3)",whiteSpace:"nowrap",
+          display:"flex",alignItems:"center",gap:10}}>
+          <span>📱</span>
+          <span>한 번 더 누르면 앱이 종료됩니다</span>
+        </div>
+      )}
       <button className="fab-quick" onClick={()=>setQuickBook(true)} title="빠른 예약">⚡</button>
       {quickBook&&(
-        <QuickBookModal customers={customers}
+        <QuickBookModal customers={customers} isAdmin={isAdmin}
           onSave={async d=>{await saveRecord(d);setQuickBook(false);}}
           onClose={()=>setQuickBook(false)}/>
       )}
@@ -2209,7 +3406,7 @@ function App(){
           onAdd={date=>{setBookingModal({date,slot:"10:00",record:null});}}/>
       )}
       {bookingModal&&(
-        <BookingModal modal={bookingModal} customers={customers}
+        <BookingModal modal={bookingModal} customers={customers} isAdmin={isAdmin}
           onSave={async d=>{await saveRecord(d);setBookingModal(null);}}
           onDelete={async id=>{await deleteRecord(id);setBookingModal(null);}}
           onClose={()=>setBookingModal(null)}
