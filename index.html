@@ -181,6 +181,9 @@ const fmtKRW=n=>Number(n).toLocaleString("ko-KR")+"원";
 const WD=d=>["일","월","화","수","목","금","토"][new Date(d).getDay()];
 const addDays=(d,n)=>{const dt=new Date(d);dt.setDate(dt.getDate()+n);return dt.toISOString().slice(0,10);};
 
+function spanDates(start,n){
+  return Array.from({length:Math.max(1,n)},(_,i)=>addDays(start,i));
+}
 function getDays(y,m){
   const first=new Date(y,m,1).getDay();
   const last=new Date(y,m+1,0).getDate();
@@ -412,8 +415,10 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
   const [amount,setAmount]=useState(String(ex?.amount||""));
   const [payment,setPayment]=useState(ex?.payment||"카드");
   const [memo,setMemo]=useState(ex?.memo||"");
+  const [multiDay,setMultiDay]=useState(String(ex?.multiDay||1));
   const [btype,setBtype]=useState(ex?.bookingType||"기존");
   const [q,setQ]=useState("");
+  const [svcQ,setSvcQ]=useState("");
 
   const cust=customers.find(c=>c.id===custId);
   const filtered=q.length>=2?customers.filter(c=>{
@@ -427,7 +432,7 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
     if(!custId){alert("고객을 선택해주세요.");return;}
     if(!services.length){alert("작업내용을 선택해주세요.");return;}
     if(isAdmin&&!amount){alert("금액을 입력해주세요.");return;}
-    await onSave({id:ex?.id,date,slot,customerId:custId,services,amount:Number(amount||0),payment,memo,bookingType:btype});
+    await onSave({id:ex?.id,date,slot,customerId:custId,services,amount:Number(amount||0),payment,memo,bookingType:btype,multiDay:Number(multiDay||1)});
     onClose();
   }
 
@@ -483,6 +488,20 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
               </div>
             )}
           </div>
+          {/* 종일 박 수 */}
+          {slot==="종일"&&(
+            <div>
+              <span className="label">📆 박 수 (종일 연속작업)</span>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <button onClick={()=>setMultiDay(d=>String(Math.max(1,Number(d)-1)))}
+                  style={{width:28,height:28,border:"1px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer",fontSize:14}}>-</button>
+                <span style={{fontSize:15,fontWeight:800,minWidth:30,textAlign:"center"}}>{multiDay}일</span>
+                <button onClick={()=>setMultiDay(d=>String(Math.min(14,Number(d)+1)))}
+                  style={{width:28,height:28,border:"1px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer",fontSize:14}}>+</button>
+                <span style={{fontSize:11,color:"#94a3b8"}}>{date} ~ {addDays(date,Number(multiDay)-1)}</span>
+              </div>
+            </div>
+          )}
           {/* 예약구분 */}
           <div>
             <span className="label">🏷️ 구분</span>
@@ -498,10 +517,23 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
           {/* 작업내용 */}
           <div>
             <span className="label">🔧 작업내용</span>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {SERVICES.map(s=><button key={s} className={`chip ${services.includes(s)?"active":""}`}
-                onClick={()=>toggleSvc(s)} style={{fontSize:11,padding:"4px 10px"}}>{s}</button>)}
+            <input className="inp" style={{marginBottom:7,fontSize:12}} placeholder="검색..." value={svcQ} onChange={e=>setSvcQ(e.target.value)}/>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,maxHeight:140,overflowY:"auto",padding:2}}>
+              {SERVICES.filter(s=>s.includes(svcQ)).map(s=>(
+                <button key={s} className={`chip ${services.includes(s)?"active":""}`}
+                  onClick={()=>toggleSvc(s)} style={{fontSize:11,padding:"4px 10px"}}>{s}</button>
+              ))}
             </div>
+            {services.length>0&&(
+              <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:4}}>
+                {services.map(s=>(
+                  <span key={s} style={{fontSize:11,background:"#1e293b",color:"#fff",
+                    padding:"3px 8px",borderRadius:5,fontWeight:600}}>
+                    {s} <span onClick={()=>toggleSvc(s)} style={{cursor:"pointer",marginLeft:3,opacity:0.7}}>✕</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           {/* 금액/결제 - 관리자만 */}
           {isAdmin&&(
@@ -646,8 +678,12 @@ function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase,half
                   color:isSel?"#fff":isToday?"#d97706":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155",
                   marginBottom:3}}>{dispDay}</div>
                 {data.allDay.map((r,j)=>(
-                  <div key={j} className="slot-all" style={{fontSize:9,fontWeight:700,padding:"2px 4px",borderRadius:3,marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    종일 {r._custName||""}
+                  <div key={j} className="slot-all"
+                    style={{fontSize:9,fontWeight:700,padding:"2px 4px",marginBottom:1,
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+                      borderRadius:r._isFirst?"3px 0 0 3px":r._isLast?"0 3px 3px 0":"0",
+                      borderRight:!r._isLast?"none":undefined}}>
+                    {r._isFirst?"◀ ":""}{r._custName||""}{r._isLast?" ▶":""}
                   </div>
                 ))}
                 {data.time.map((r,j)=>(
@@ -871,12 +907,21 @@ function App(){
   // useMemo는 항상 최상단에
   const calMap=useMemo(()=>{
     const map={};
+    const ensure=d=>{if(!map[d])map[d]={allDay:[],time:[]};};
     records.forEach(r=>{
       const cust=customers.find(c=>c.id===r.customerId||c.id===String(r.customerId));
       const name=cust?.name||cust?.phone||"";
-      if(!map[r.date]) map[r.date]={allDay:[],time:[]};
-      if(r.slot==="종일") map[r.date].allDay.push({...r,_custName:name});
-      else map[r.date].time.push({...r,_custName:name});
+      if(r.slot==="종일"){
+        const days=spanDates(r.date,Number(r.multiDay||1));
+        days.forEach((d,idx)=>{
+          ensure(d);
+          map[d].allDay.push({...r,_custName:name,_spanIdx:idx,_spanTotal:days.length,
+            _isFirst:idx===0,_isLast:idx===days.length-1});
+        });
+      } else {
+        ensure(r.date);
+        map[r.date].time.push({...r,_custName:name});
+      }
     });
     return map;
   },[records,customers]);
