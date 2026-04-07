@@ -135,6 +135,7 @@
       align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,0.3);}
     @media(max-width:767px){.fab{display:flex;}}
 
+    @keyframes slideInRight{from{transform:translateX(100%);}to{transform:translateX(0);}}
     @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
     .fade-in{animation:fadeIn 0.25s ease;}
   </style>
@@ -185,6 +186,15 @@ function getDays(y,m){
   const last=new Date(y,m+1,0).getDate();
   const arr=Array(first).fill(null);
   for(let i=1;i<=last;i++) arr.push(i);
+  return arr;
+}
+function getHalfDays(y,m,half){
+  const last=new Date(y,m+1,0).getDate();
+  const start=half==="first"?1:Math.floor(last/2)+1;
+  const end=half==="first"?Math.floor(last/2):last;
+  const startDow=new Date(y,m,start).getDay();
+  const arr=Array(startDow).fill(null);
+  for(let i=start;i<=end;i++) arr.push(i);
   return arr;
 }
 function getWeekDates(base){
@@ -583,7 +593,7 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
 }
 
 // ── 캘린더 컴포넌트 ──────────────────────────────────────
-function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase}){
+function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase,half}){
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
   const [winH,setWinH]=useState(window.innerHeight);
   useEffect(()=>{
@@ -592,8 +602,11 @@ function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase}){
     return()=>window.removeEventListener("resize",fn);
   },[]);
 
-  const days=isWeek?getWeekDates(weekBase||selDate):getDays(year,month);
-  const weekCount=isWeek?1:Math.ceil(days.filter(d=>d!==null).length<=28?4:days.length<=35?5:6);
+  const days=isWeek?getWeekDates(weekBase||selDate):
+    half==="first"?getHalfDays(year,month,"first"):
+    half==="second"?getHalfDays(year,month,"second"):
+    getDays(year,month);
+  const weekCount=isWeek?1:Math.ceil(days.length/7);
   const cellH=isPC?(isWeek?Math.max(160,Math.floor((winH-220)*0.88)):Math.max(110,Math.floor((winH-220)/weekCount))):isWeek?110:90;
 
   function getDs(d){
@@ -652,6 +665,180 @@ function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase}){
   );
 }
 
+// ── 분석 탭 컴포넌트 ────────────────────────────────────
+function AnalyticsTab({records}){
+  const [aView,setAView]=useState("monthly");
+  const now=new Date();
+  const [aYear,setAYear]=useState(now.getFullYear());
+
+  // 월별 데이터
+  const monthlyData=Array.from({length:12},(_,i)=>{
+    const prefix=`${aYear}-${String(i+1).padStart(2,"0")}`;
+    const recs=records.filter(r=>r.date.startsWith(prefix));
+    return{month:i+1,total:recs.reduce((s,r)=>s+Number(r.amount||0),0),count:recs.length};
+  });
+  const maxMonthly=Math.max(...monthlyData.map(d=>d.total),1);
+
+  // 연도별 데이터
+  const years=[...new Set(records.map(r=>r.date.slice(0,4)))].sort((a,b)=>b-a);
+  const yearlyData=years.map(y=>({
+    year:y,
+    total:records.filter(r=>r.date.startsWith(y)).reduce((s,r)=>s+Number(r.amount||0),0),
+    count:records.filter(r=>r.date.startsWith(y)).length
+  }));
+  const maxYearly=Math.max(...yearlyData.map(d=>d.total),1);
+
+  return(
+    <div className="fade-in">
+      {/* 탭 선택 */}
+      <div style={{display:"flex",background:"#fff",borderRadius:10,padding:3,marginBottom:14,
+        border:"1px solid #e2e8f0",width:"fit-content"}}>
+        {[["monthly","월별 분석"],["yearly","연도별 분석"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setAView(v)}
+            style={{padding:"7px 18px",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+              background:aView===v?"#1e293b":"none",color:aView===v?"#fff":"#94a3b8"}}>{l}</button>
+        ))}
+      </div>
+
+      {aView==="monthly"&&(
+        <div className="card">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontWeight:800,fontSize:14}}>📈 {aYear}년 월별 매출</div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <button onClick={()=>setAYear(y=>y-1)} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,width:24,height:24,cursor:"pointer",fontSize:12}}>‹</button>
+              <span style={{fontSize:13,fontWeight:700}}>{aYear}</span>
+              <button onClick={()=>setAYear(y=>y+1)} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,width:24,height:24,cursor:"pointer",fontSize:12}}>›</button>
+            </div>
+          </div>
+          {monthlyData.map(d=>(
+            <div key={d.month} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <div style={{width:28,fontSize:12,fontWeight:700,color:"#64748b",flexShrink:0}}>{d.month}월</div>
+              <div style={{flex:1,height:20,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${(d.total/maxMonthly)*100}%`,
+                  background:"#1e293b",borderRadius:4,transition:"width 0.5s"}}/>
+              </div>
+              <div style={{width:90,fontSize:12,fontWeight:700,color:"#1e293b",textAlign:"right",flexShrink:0}}>{fmtKRW(d.total)}</div>
+              <div style={{width:28,fontSize:11,color:"#94a3b8",flexShrink:0,textAlign:"right"}}>{d.count}건</div>
+            </div>
+          ))}
+          <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",fontSize:13}}>
+            <span style={{color:"#64748b"}}>연간 합계</span>
+            <span style={{fontWeight:800,color:"#1e293b"}}>{fmtKRW(monthlyData.reduce((s,d)=>s+d.total,0))}</span>
+          </div>
+        </div>
+      )}
+
+      {aView==="yearly"&&(
+        <div className="card">
+          <div style={{fontWeight:800,fontSize:14,marginBottom:16}}>📊 연도별 매출</div>
+          {yearlyData.length===0?(
+            <div style={{textAlign:"center",padding:"24px 0",color:"#cbd5e1"}}>데이터 없음</div>
+          ):yearlyData.map(d=>(
+            <div key={d.year} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+              <div style={{width:40,fontSize:13,fontWeight:700,color:"#64748b",flexShrink:0}}>{d.year}</div>
+              <div style={{flex:1,height:24,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${(d.total/maxYearly)*100}%`,
+                  background:"linear-gradient(90deg,#1e293b,#3b82f6)",borderRadius:4,transition:"width 0.5s"}}/>
+              </div>
+              <div style={{width:100,fontSize:13,fontWeight:700,color:"#1e293b",textAlign:"right",flexShrink:0}}>{fmtKRW(d.total)}</div>
+              <div style={{width:32,fontSize:11,color:"#94a3b8",flexShrink:0,textAlign:"right"}}>{d.count}건</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 매출현황 슬라이드 패널 ───────────────────────────────
+function SalesPanel({records,selDate,onClose}){
+  const [mode,setMode]=useState("day"); // day|week|month
+  const [ref_d,setRefD]=useState(selDate||new Date().toISOString().slice(0,10));
+  const todayStr=new Date().toISOString().slice(0,10);
+
+  function getRecs(label){
+    if(label==="day") return records.filter(r=>r.date===ref_d);
+    if(label==="week"){
+      const wk=getWeekDates(ref_d);
+      return records.filter(r=>wk.includes(r.date));
+    }
+    const prefix=ref_d.slice(0,7);
+    return records.filter(r=>r.date.startsWith(prefix));
+  }
+
+  const recs=getRecs(mode);
+  const total=recs.reduce((s,r)=>s+Number(r.amount||0),0);
+  const byPayment={};
+  recs.forEach(r=>{byPayment[r.payment||"기타"]=(byPayment[r.payment||"기타"]||0)+Number(r.amount||0);});
+
+  const label=mode==="day"?ref_d.slice(5).replace("-","."):
+    mode==="week"?`${getWeekDates(ref_d)[0].slice(5).replace("-",".")}~${getWeekDates(ref_d)[6].slice(5).replace("-",".")}`:
+    ref_d.slice(0,7).replace("-",".");
+
+  function prev(){
+    if(mode==="day") setRefD(d=>addDays(d,-1));
+    else if(mode==="week") setRefD(d=>addDays(d,-7));
+    else{ const dt=new Date(ref_d); dt.setMonth(dt.getMonth()-1); setRefD(dt.toISOString().slice(0,10)); }
+  }
+  function next(){
+    if(mode==="day") setRefD(d=>addDays(d,1));
+    else if(mode==="week") setRefD(d=>addDays(d,7));
+    else{ const dt=new Date(ref_d); dt.setMonth(dt.getMonth()+1); setRefD(dt.toISOString().slice(0,10)); }
+  }
+
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:150,display:"flex",alignItems:"stretch",justifyContent:"flex-end"}} onClick={onClose}>
+      <div style={{width:280,background:"#fff",boxShadow:"-8px 0 32px rgba(0,0,0,0.15)",
+        display:"flex",flexDirection:"column",animation:"slideInRight 0.25s ease",padding:20,overflowY:"auto"}}
+        onClick={e=>e.stopPropagation()}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:3,color:"#1e293b",marginBottom:16}}>💰 매출 현황</div>
+        {/* 기간 선택 */}
+        <div style={{display:"flex",gap:4,marginBottom:14}}>
+          {[["day","일"],["week","주"],["month","월"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setMode(v)}
+              style={{flex:1,padding:"6px 0",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer",
+                background:mode===v?"#1e293b":"#f1f5f9",color:mode===v?"#fff":"#64748b"}}>{l}</button>
+          ))}
+        </div>
+        {/* 네비 */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+          <button onClick={prev} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,width:28,height:28,cursor:"pointer"}}>‹</button>
+          <span style={{flex:1,textAlign:"center",fontSize:12,fontWeight:700,color:"#1e293b"}}>{label}</span>
+          <button onClick={next} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,width:28,height:28,cursor:"pointer"}}>›</button>
+        </div>
+        {/* 합계 */}
+        <div style={{background:"#0f172a",borderRadius:12,padding:"16px",marginBottom:14,textAlign:"center"}}>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:6}}>총 매출</div>
+          <div style={{fontSize:26,fontWeight:800,color:"#fff",letterSpacing:-1}}>{fmtKRW(total)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:4}}>{recs.length}건</div>
+        </div>
+        {/* 결제수단별 */}
+        {Object.entries(byPayment).map(([p,amt])=>(
+          <div key={p} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #f1f5f9",fontSize:13}}>
+            <span style={{color:"#64748b",fontWeight:600}}>{p}</span>
+            <span style={{fontWeight:700,color:"#1e293b"}}>{fmtKRW(amt)}</span>
+          </div>
+        ))}
+        {/* 건별 목록 */}
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:8}}>건별 내역</div>
+          {recs.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>(
+            <div key={r.id} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9",fontSize:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                <span style={{color:"#64748b"}}>{r.date.slice(5).replace("-",".")} {r.slot}</span>
+                <span style={{fontWeight:700,color:"#1e293b"}}>{fmtKRW(r.amount)}</span>
+              </div>
+              <div style={{color:"#94a3b8",fontSize:11}}>{(r.services||[]).join(" · ")}</div>
+            </div>
+          ))}
+          {recs.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:"#cbd5e1",fontSize:12}}>내역 없음</div>}
+        </div>
+        <button onClick={onClose} style={{marginTop:"auto",paddingTop:16,background:"none",border:"none",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>닫기</button>
+      </div>
+    </div>
+  );
+}
+
 // ── 메인 App ─────────────────────────────────────────────
 function App(){
   const db=window.__db;
@@ -675,6 +862,7 @@ function App(){
   const [bookingModal,setBookingModal]=useState(null);
   const [custModal,setCustModal]=useState(null);
   const [showAccModal,setShowAccModal]=useState(false);
+  const [showSales,setShowSales]=useState(false);
   const [exitToast,setExitToast]=useState(false);
   const exitTimer=useRef(null);
   const stateRef=useRef({});
@@ -791,9 +979,14 @@ function App(){
             <span className="sb-item-icon">👤</span>신규 고객
           </button>
           {isAdmin&&(
-            <button className="sb-item" onClick={()=>{setShowAccModal(true);setSideOpen(false);}}>
-              <span className="sb-item-icon">🔐</span>계정 관리
-            </button>
+            <>
+              <button className="sb-item" onClick={()=>{setShowSales(true);setSideOpen(false);}}>
+                <span className="sb-item-icon">💰</span>매출 현황
+              </button>
+              <button className="sb-item" onClick={()=>{setShowAccModal(true);setSideOpen(false);}}>
+                <span className="sb-item-icon">🔐</span>계정 관리
+              </button>
+            </>
           )}
           <button className="sb-item" onClick={()=>{handleLogout();setSideOpen(false);}}>
             <span className="sb-item-icon">🚪</span>로그아웃
@@ -826,12 +1019,13 @@ function App(){
                 {[
                   {label:"오늘 예약",val:`${todayRecs.length}건`,bg:"linear-gradient(135deg,#1e40af,#3b82f6)"},
                   ...(isAdmin?[
-                    {label:"오늘 매출",val:fmtKRW(todayTotal),bg:"linear-gradient(135deg,#065f46,#10b981)"},
-                    {label:"이달 매출",val:fmtKRW(monthTotal),bg:"linear-gradient(135deg,#7c2d12,#ea580c)"},
+                    {label:"오늘 매출",val:fmtKRW(todayTotal),bg:"linear-gradient(135deg,#065f46,#10b981)",click:()=>setShowSales(true)},
+                    {label:"이달 매출",val:fmtKRW(monthTotal),bg:"linear-gradient(135deg,#7c2d12,#ea580c)",click:()=>setShowSales(true)},
                   ]:[]),
                   {label:"전체 고객",val:`${customers.length}명`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"},
                 ].map((s,i)=>(
-                  <div key={i} className="stat-card" style={{background:s.bg}}>
+                  <div key={i} className="stat-card" style={{background:s.bg,cursor:s.click?"pointer":"default"}}
+                    onClick={s.click}>
                     <div style={{fontSize:11,opacity:0.8,marginBottom:6}}>{s.label}</div>
                     <div style={{fontSize:20,fontWeight:800}}>{s.val}</div>
                   </div>
@@ -868,7 +1062,7 @@ function App(){
               {/* 뷰 선택 + 네비게이션 */}
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8,flexWrap:"wrap"}}>
                 <div style={{display:"flex",background:"#fff",borderRadius:8,padding:2,gap:1,border:"1px solid #e2e8f0"}}>
-                  {[["month","월"],["week","주"]].map(([v,l])=>(
+                  {[["month","월"],["first","전반"],["second","후반"],["week","주"]].map(([v,l])=>(
                     <button key={v} onClick={()=>setView(v)}
                       style={{padding:"5px 12px",border:"none",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
                         background:view===v?"#1e293b":"none",color:view===v?"#fff":"#94a3b8"}}>{l}</button>
@@ -876,16 +1070,22 @@ function App(){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <button onClick={()=>{
-                    if(view==="week"){setSelDate(d=>addDays(d,-7));}
-                    else{if(calM===0){setCalY(y=>y-1);setCalM(11);}else setCalM(m=>m-1);}
+                    if(view==="week"){setSelDate(d=>addDays(d,-7));return;}
+                    if(view==="first"){if(calM===0){setCalY(y=>y-1);setCalM(11);}else setCalM(m=>m-1);setView("second");return;}
+                    if(view==="second"){setView("first");return;}
+                    if(calM===0){setCalY(y=>y-1);setCalM(11);}else setCalM(m=>m-1);
                   }} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14}}>‹</button>
                   <span style={{fontSize:14,fontWeight:700,color:"#1e293b",minWidth:80,textAlign:"center"}}>
                     {view==="week"?selDate.slice(0,7).replace("-","."):
+                      view==="first"?`${calY}.${String(calM+1).padStart(2,"0")} 전반`:
+                      view==="second"?`${calY}.${String(calM+1).padStart(2,"0")} 후반`:
                       `${calY}.${String(calM+1).padStart(2,"0")}`}
                   </span>
                   <button onClick={()=>{
-                    if(view==="week"){setSelDate(d=>addDays(d,7));}
-                    else{if(calM===11){setCalY(y=>y+1);setCalM(0);}else setCalM(m=>m+1);}
+                    if(view==="week"){setSelDate(d=>addDays(d,7));return;}
+                    if(view==="first"){setView("second");return;}
+                    if(view==="second"){if(calM===11){setCalY(y=>y+1);setCalM(0);}else setCalM(m=>m+1);setView("first");return;}
+                    if(calM===11){setCalY(y=>y+1);setCalM(0);}else setCalM(m=>m+1);
                   }} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14}}>›</button>
                   <button onClick={()=>{setSelDate(today());setCalY(new Date().getFullYear());setCalM(new Date().getMonth());}}
                     style={{padding:"4px 10px",background:"#1e293b",color:"#fff",border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>오늘</button>
@@ -894,12 +1094,23 @@ function App(){
                   style={{padding:"7px 14px",background:"#1e293b",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>+ 예약</button>
               </div>
 
+              {/* 범례 */}
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+                {[["10:00","slot-10"],["13:00","slot-13"],["16:00","slot-16"],["종일","slot-all"]].map(([s,cls])=>(
+                  <span key={s} className={cls} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:5}}>{s}</span>
+                ))}
+                <span onClick={()=>openBooking(selDate,"10:00")}
+                  style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:5,
+                    background:"#f1f5f9",border:"1px solid #e2e8f0",color:"#64748b",cursor:"pointer"}}>종일도 동일</span>
+              </div>
               {/* PC 스플릿 레이아웃 */}
               <div className="pc-split">
                 <div>
                   <div style={{borderRadius:12,overflow:"hidden",border:"1px solid #e2e8f0",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
                     <BigCalendar year={calY} month={calM} calMap={calMap}
-                      isWeek={view==="week"} selDate={selDate} weekBase={selDate}
+                      isWeek={view==="week"}
+                      half={view==="first"?"first":view==="second"?"second":null}
+                      selDate={selDate} weekBase={selDate}
                       onCellClick={ds=>{setSelDate(ds);}}/>
                   </div>
                 </div>
@@ -980,37 +1191,14 @@ function App(){
             </div>
           )}
 
-          {/* ── 분석 (관리자만) ──────────────────────────── */}
-          {tab==="analytics"&&isAdmin&&(
-            <div className="fade-in">
-              <div className="card">
-                <div style={{fontWeight:800,fontSize:14,marginBottom:16}}>📈 월별 매출 분석</div>
-                {Array.from({length:12},(_,i)=>{
-                  const m=String(i+1).padStart(2,"0");
-                  const prefix=`${thisY}-${m}`;
-                  const mRecs=records.filter(r=>r.date.startsWith(prefix));
-                  const total=mRecs.reduce((s,r)=>s+Number(r.amount||0),0);
-                  const max=Math.max(...Array.from({length:12},(_,j)=>{
-                    const mp=`${thisY}-${String(j+1).padStart(2,"0")}`;
-                    return records.filter(r=>r.date.startsWith(mp)).reduce((s,r)=>s+Number(r.amount||0),0);
-                  }),1);
-                  return(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
-                      <div style={{width:30,fontSize:12,fontWeight:700,color:"#64748b",flexShrink:0}}>{i+1}월</div>
-                      <div style={{flex:1,height:20,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${(total/max)*100}%`,background:"#1e293b",borderRadius:4,transition:"width 0.5s"}}/>
-                      </div>
-                      <div style={{width:80,fontSize:12,fontWeight:700,color:"#1e293b",textAlign:"right",flexShrink:0}}>{fmtKRW(total)}</div>
-                      <div style={{width:30,fontSize:11,color:"#94a3b8",flexShrink:0}}>{mRecs.length}건</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* ── 분석 ─────────────────────────────────────── */}
+          {tab==="analytics"&&isAdmin&&<AnalyticsTab records={records}/>}
 
         </div>
       </div>
+
+      {/* 매출현황 패널 */}
+      {showSales&&isAdmin&&<SalesPanel records={records} selDate={selDate} onClose={()=>setShowSales(false)}/>}
 
       {/* FAB */}
       <button className="fab" onClick={()=>setBookingModal({date:today(),slot:"10:00",record:null})}>⚡</button>
