@@ -170,13 +170,9 @@
     @media(min-width:768px){
       .pc-split{display:grid;grid-template-columns:1fr 320px;gap:12px;align-items:start;}
       .pc-sticky{position:sticky;top:72px;}
-      /* PC 캘린더 셀 높이 CSS 강제 */
-      @media(min-width:768px){
-        .cal-cell-month { min-height: calc((100vh - 210px) / 5) !important; }
-        .cal-cell-week  { min-height: calc((100vh - 210px) * 0.85) !important; }
-      }
-      /* PC에서 달력 셀 더 크게 */
-      .cal-cell-pc { min-height: 130px !important; }
+      /* PC 캘린더 셀 높이 - topbar(52)+뷰헤더(44)+범례(32)+패딩(32) = 160px */
+      .cal-cell-month { min-height: calc((100vh - 160px) / 5) !important; }
+      .cal-cell-week  { min-height: calc((100vh - 160px) * 0.88) !important; }
     }
     @media(max-width:767px){
       .pc-split{display:block;}
@@ -702,7 +698,7 @@ function DayPopup({date,records,customers,onClose,onEdit,onDelete,onAdd,getCusto
 }
 
 
-function CustomerSearch({customers,records,onEdit}){
+function CustomerSearch({customers,records,onEdit,isAdmin=true}){
   const [query,setQuery]=useState("");
   const [selected,setSelected]=useState(null);
 
@@ -864,7 +860,7 @@ function CustomerSearch({customers,records,onEdit}){
         <div>
           {sortedCustomers.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:"#cbd5e1",fontSize:13}}>NO CUSTOMERS YET</div>}
 
-<div className="cust-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+          <div className="cust-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
           {sortedCustomers.map(c=>{
             const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
             const total=cRecs.reduce((s,r)=>s+Number(r.amount),0);
@@ -1042,14 +1038,14 @@ function AnalyticsTab({records,customers,getCustomer}){
     });
   },[records,getCustomer]);
 
-  const [analyticsView, setAnalyticsView] = useState("yearly"); // yearly | monthly
+  const [analyticsView, setAnalyticsView] = useState("monthly"); // monthly | yearly
 
   return(
     <div style={{animation:"fadeUp 0.3s ease"}}>
       {/* 탭 전환 */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div style={{display:"flex",background:"#fff",borderRadius:8,padding:2,gap:1,border:"1px solid #e2e8f0"}}>
-          {[["yearly","연도별 분석"],["monthly","월별 분석"]].map(([v,l])=>(
+          {[["monthly","월별 분석"],["yearly","연도별 분석"]].map(([v,l])=>(
             <button key={v} onClick={()=>setAnalyticsView(v)}
               style={{padding:"6px 14px",border:"none",fontSize:11,fontWeight:700,cursor:"pointer",borderRadius:6,
                 background:analyticsView===v?"#1e293b":"none",
@@ -2973,18 +2969,10 @@ function App(){
     return null;
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const isAdmin = role === "admin";
 
-  function handleLogout(){
-    localStorage.removeItem(AUTH_KEY);
-    setRole(null);
-  }
-
-  // 미로그인 → 로그인 화면
-  if(!role) return <LoginScreen db={db} onLogin={r=>setRole(r)}/>;
-
+  // ── 앱 상태 (모든 Hook은 조건문 앞에 선언 - React 규칙) ──
   const [tab,setTab]=useState("dashboard");
-  const [sideOpen,setSideOpen]=useState(false); // 모바일 사이드바
+  const [sideOpen,setSideOpen]=useState(false);
   const [selDate,setSelDate]=useState(todayStr());
   const [calY,setCalY]=useState(new Date().getFullYear());
   const [calM,setCalM]=useState(new Date().getMonth());
@@ -2995,6 +2983,16 @@ function App(){
   const [dayPopup,setDayPopup]=useState(null);
   const [quickBook,setQuickBook]=useState(false);
   const closeSales=useCallback(()=>setShowSales(false),[]);
+
+  const isAdmin = role === "admin";
+
+  function handleLogout(){
+    localStorage.removeItem(AUTH_KEY);
+    setRole(null);
+  }
+
+  // 미로그인 → 로그인 화면 (Hook 선언 이후에 조건부 렌더링)
+  if(!role) return <LoginScreen db={db} onLogin={r=>setRole(r)}/>;
 
   // ── 모바일 뒤로가기 핸들러 ─────────────────────────────
   const stateRef = useRef({});
@@ -3366,7 +3364,7 @@ function App(){
                   + 신규 등록
                 </button>
               </div>
-              <CustomerSearch customers={customers} records={records} onEdit={c=>setCustModal(c)}/>
+              <CustomerSearch customers={customers} records={records} onEdit={c=>setCustModal(c)} isAdmin={isAdmin}/>
             </div>
           )}
 
