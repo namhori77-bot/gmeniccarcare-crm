@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
@@ -445,7 +448,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
   // topbar(52) + page-content패딩(32) + 뷰버튼행(46) + 범례행(34) + 요일헤더(36) = 200
   // weekCount에 따라 나눔
   const weekCount = isWeek ? 1 : Math.ceil(days.length / 7);
-  const calH = winH - 200; // 캘린더 영역 가용 높이
+  const calH = winH - 230; // 캘린더 영역 가용 높이
   const CELL_H = isPC
     ? (isWeek ? Math.max(150, Math.floor(calH * 0.88)) : Math.max(110, Math.floor(calH / weekCount)))
     : (isWeek ? 110 : 90);
