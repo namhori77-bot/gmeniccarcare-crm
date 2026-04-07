@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <meta http-equiv="Expires" content="0"/>
   <title>G-MENIC CRM</title>
-  <meta name="version" content="2026.04.05"/>
+  <meta name="version" content="20260407_0157"/>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -84,8 +87,9 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      height: 100vh;
       min-width: 0;
+      overflow: hidden;
     }
     .topbar {
       background: #fff;
@@ -98,7 +102,7 @@
       position: sticky; top: 0; z-index: 50;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .page-content { padding: 16px 20px; }
+    .page-content { padding: 16px 20px; flex: 1; overflow-y: auto; }
     .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
     .stat-card { border-radius: 14px; padding: 18px 16px; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
     .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -428,28 +432,28 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
   const [winH,setWinH]=useState(window.innerHeight);
+  const wrapRef = useRef(null);
   useEffect(()=>{
     const fn=()=>{ setIsPC(window.innerWidth>=768); setWinH(window.innerHeight); };
     window.addEventListener("resize",fn);
     return()=>window.removeEventListener("resize",fn);
   },[]);
-  // 셀 너비: PC=calc, 모바일=고정px
+  // 셀 너비
   const CELL_W = isPC ? "calc((100% - 6px) / 7)" : "100px";
   const GRID_W = isPC ? "100%" : "calc(100px * 7 + 6px)";
-  // 셀 높이: JS로 window.innerHeight 기반 직접 계산
-  // topbar=52, 캘린더헤더(뷰버튼+네비+범례+패딩)=124, 요일헤더=34 → 총 210px
-  const OFFSET = 200; // topbar52+패딩16+뷰행50+범례36+요일헤더34+여유12=200
+  // 셀 높이: 뷰포트 - 캘린더 위 UI 높이
+  // topbar(52) + page-content패딩(32) + 뷰버튼행(46) + 범례행(34) + 요일헤더(36) = 200
+  // weekCount에 따라 나눔
   const weekCount = isWeek ? 1 : Math.ceil(days.length / 7);
+  const calH = winH - 200; // 캘린더 영역 가용 높이
   const CELL_H = isPC
-    ? (isWeek
-        ? Math.max(160, Math.floor((winH - OFFSET) * 0.88))
-        : Math.max(100, Math.floor((winH - OFFSET) / weekCount)))
+    ? (isWeek ? Math.max(150, Math.floor(calH * 0.88)) : Math.max(110, Math.floor(calH / weekCount)))
     : (isWeek ? 110 : 90);
   const CELL_PX = isPC ? Math.max(80, Math.floor((window.innerWidth - 490) / 7)) : 100;
   const GAP_PX = 1;
 
   return(
-    <div style={{overflowX:isPC?"hidden":"auto",WebkitOverflowScrolling:"touch",height:isPC?"auto":"unset"}}>
+    <div ref={wrapRef} style={{overflowX:isPC?"hidden":"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{width:GRID_W,minWidth:GRID_W}}>
         {/* 요일 헤더 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,background:"#e2e8f0",borderRadius:"10px 10px 0 0",overflow:"hidden"}}>
@@ -3107,7 +3111,7 @@ function App(){
     return ()=>{ window.removeEventListener("popstate", handlePop); };
   },[]);
 
-  // ── 파생 값 (Hook 아님, 조건부 return 앞뒤 어디든 가능)
+  // ── 파생 값
   const isAdmin = role === "admin";
 
   function handleLogout(){
@@ -3116,7 +3120,15 @@ function App(){
     setLoginName("");
   }
 
-  // ── 미로그인 → 로그인 화면 (모든 Hook 선언 완료 후)
+  // ── 렌더링 우선순위: 로딩중 → 미로그인 → 앱
+  if(loading) return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",
+      height:"100vh",flexDirection:"column",gap:14,background:"#0f172a"}}>
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,letterSpacing:3,color:"#fff"}}>G-MENIC</div>
+      <div style={{width:60,height:2,background:"rgba(255,255,255,0.3)",borderRadius:1}}/>
+      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",letterSpacing:2}}>{db?"CONNECTING...":"LOADING..."}</div>
+    </div>
+  );
   if(!role) return <LoginScreen db={db} onLogin={(r,n)=>{setRole(r);setLoginName(n||"");}} />;
 
   function goPrev(){
@@ -3196,13 +3208,7 @@ function App(){
   const isBlocked=!!allDayRec;
   const isCont=allDayRec&&allDayRec.date!==selDate;
 
-  if(loading)return(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:14,background:"#f1f5f9"}}>
-      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,letterSpacing:3,color:"#1e293b"}}>G-MENIC CRM</div>
-      <div style={{width:60,height:2,background:"#1e293b",borderRadius:1,animation:"pulse 1.5s infinite"}}/>
-      <div style={{fontSize:12,color:"#94a3b8",letterSpacing:1}}>{db?"CONNECTING...":"LOADING..."}</div>
-    </div>
-  );
+  // loading은 위에서 처리됨
 
   // 직원은 analytics 탭 숨김
   const MENU=[
