@@ -84,6 +84,7 @@
       .mob-menu-btn{display:flex;align-items:center;justify-content:center;}
       .pc-split{display:block;}
       .content{padding:12px 14px;}
+      .cust-grid{grid-template-columns:1fr!important;}
     }
 
     /* 모달 */
@@ -624,6 +625,49 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
   );
 }
 
+
+// ── 미니 캘린더 (대시보드용) ─────────────────────────────
+function MiniCalendar({year,month,selDate,calMap,onSelect}){
+  const [MY,setMY]=useState(()=>({y:year,m:month}));
+  useEffect(()=>{setMY({y:year,m:month});},[year,month]);
+  const days=getDays(MY.y,MY.m);
+  const DAYS=["일","월","화","수","목","금","토"];
+  const ts=today();
+  return(
+    <div className="card" style={{padding:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <button onClick={()=>setMY(({y,m})=>m===0?{y:y-1,m:11}:{y,m:m-1})}
+          style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,width:24,height:24,cursor:"pointer",fontSize:12}}>‹</button>
+        <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{MY.y}.{String(MY.m+1).padStart(2,"0")}</span>
+        <button onClick={()=>setMY(({y,m})=>m===11?{y:y+1,m:0}:{y,m:m+1})}
+          style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,width:24,height:24,cursor:"pointer",fontSize:12}}>›</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,marginBottom:2}}>
+        {DAYS.map((d,i)=><div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,padding:"2px 0",color:i===0?"#ef4444":i===6?"#3b82f6":"#94a3b8"}}>{d}</div>)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+        {days.map((d,i)=>{
+          if(!d) return <div key={i}/>;
+          const ds=`${MY.y}-${String(MY.m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+          const isSel=ds===selDate, isT=ds===ts;
+          const hasRec=(calMap[ds]?.allDay?.length||0)+(calMap[ds]?.time?.length||0)>0;
+          const dow=new Date(ds).getDay();
+          return(
+            <div key={i} onClick={()=>onSelect(ds)}
+              style={{textAlign:"center",padding:"5px 1px",borderRadius:5,cursor:"pointer",
+                background:isSel?"#1e293b":isT?"#fffbeb":"transparent",
+                color:isSel?"#fff":isT?"#d97706":dow===0?"#ef4444":dow===6?"#3b82f6":"#334155",
+                fontSize:11,fontWeight:isSel||isT?700:400,position:"relative"}}>
+              {d}
+              {hasRec&&!isSel&&<span style={{position:"absolute",bottom:1,left:"50%",transform:"translateX(-50%)",width:3,height:3,borderRadius:"50%",background:isT?"#f59e0b":"#3b82f6",display:"block"}}/>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── 캘린더 컴포넌트 ──────────────────────────────────────
 function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase,half}){
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
@@ -639,7 +683,8 @@ function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase,half
     half==="second"?getHalfDays(year,month,"second"):
     getDays(year,month);
   const weekCount=isWeek?1:Math.ceil(days.length/7);
-  const cellH=isPC?(isWeek?Math.max(160,Math.floor((winH-220)*0.88)):Math.max(110,Math.floor((winH-220)/weekCount))):isWeek?110:90;
+  const OFFSET=200;
+  const cellH=isPC?(isWeek?Math.max(160,Math.floor((winH-OFFSET)*0.88)):Math.max(120,Math.floor((winH-OFFSET)/weekCount))):isWeek?110:90;
 
   function getDs(d){
     if(!d) return null;
@@ -899,6 +944,7 @@ function App(){
   const [custModal,setCustModal]=useState(null);
   const [showAccModal,setShowAccModal]=useState(false);
   const [showSales,setShowSales]=useState(false);
+  const [dashDate,setDashDate]=useState(today());
   const [exitToast,setExitToast]=useState(false);
   const exitTimer=useRef(null);
   const stateRef=useRef({});
@@ -976,7 +1022,7 @@ function App(){
   ];
 
   // ── 오늘 예약 ──────────────────────────────────────────
-  const todayRecs=records.filter(r=>r.date===today()).sort((a,b)=>a.slot.localeCompare(b.slot));
+  const todayRecs=records.filter(r=>r.date===dashDate).sort((a,b)=>a.slot.localeCompare(b.slot));
   const selRecs=records.filter(r=>r.date===selDate).sort((a,b)=>a.slot.localeCompare(b.slot));
   const getC=id=>customers.find(c=>c.id===id||c.id===String(id));
 
@@ -985,6 +1031,7 @@ function App(){
   const thisY=new Date().getFullYear();
   const monthTotal=records.filter(r=>r.date.startsWith(`${thisY}-${String(thisM+1).padStart(2,"0")}`)).reduce((s,r)=>s+Number(r.amount||0),0);
   const todayTotal=todayRecs.reduce((s,r)=>s+Number(r.amount||0),0);
+  const isToday=dashDate===today();
 
   return(
     <div className="layout">
@@ -1060,9 +1107,26 @@ function App(){
           {/* ── 대시보드 ─────────────────────────────────── */}
           {tab==="dashboard"&&(
             <div className="fade-in">
+              {/* 날짜 네비게이션 */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:14}}>
+                <button onClick={()=>setDashDate(d=>addDays(d,-1))}
+                  style={{width:32,height:32,border:"1px solid #e2e8f0",borderRadius:8,background:"#fff",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:18,fontWeight:800,color:"#1e293b",letterSpacing:-0.5}}>
+                    {dashDate.replace(/-/g,".")}
+                  </div>
+                  <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>
+                    {WD(dashDate)}요일{isToday?" · 오늘":""}
+                  </div>
+                </div>
+                <button onClick={()=>setDashDate(d=>addDays(d,1))}
+                  style={{width:32,height:32,border:"1px solid #e2e8f0",borderRadius:8,background:"#fff",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+                {!isToday&&<button onClick={()=>setDashDate(today())}
+                  style={{padding:"4px 10px",background:"#1e293b",color:"#fff",border:"none",borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer"}}>오늘</button>}
+              </div>
               <div className="stat-grid">
                 {[
-                  {label:"오늘 예약",val:`${todayRecs.length}건`,bg:"linear-gradient(135deg,#1e40af,#3b82f6)"},
+                  {label:`${isToday?"오늘":"선택일"} 예약`,val:`${todayRecs.length}건`,bg:"linear-gradient(135deg,#1e40af,#3b82f6)"},
                   ...(isAdmin?[
                     {label:"오늘 매출",val:fmtKRW(todayTotal),bg:"linear-gradient(135deg,#065f46,#10b981)",click:()=>setShowSales(true)},
                     {label:"이달 매출",val:fmtKRW(monthTotal),bg:"linear-gradient(135deg,#7c2d12,#ea580c)",click:()=>setShowSales(true)},
@@ -1078,9 +1142,9 @@ function App(){
               </div>
               {/* 오늘 예약 목록 */}
               <div className="card">
-                <div style={{fontWeight:800,fontSize:14,marginBottom:12}}>📅 오늘 예약 ({today().replace(/-/g,".")})</div>
+                <div style={{fontWeight:800,fontSize:14,marginBottom:12}}>📅 {dashDate.replace(/-/g,".")} {WD(dashDate)}요일 예약</div>
                 {todayRecs.length===0?(
-                  <div style={{textAlign:"center",padding:"24px 0",color:"#cbd5e1",fontSize:13}}>오늘 예약이 없습니다</div>
+                  <div style={{textAlign:"center",padding:"24px 0",color:"#cbd5e1",fontSize:13}}>예약이 없습니다</div>
                 ):todayRecs.map(r=>{
                   const c=getC(r.customerId);
                   return(
@@ -1098,6 +1162,13 @@ function App(){
                   );
                 })}
               </div>
+              {/* 미니 캘린더 */}
+              <MiniCalendar
+                year={new Date(dashDate).getFullYear()}
+                month={new Date(dashDate).getMonth()}
+                selDate={dashDate}
+                calMap={calMap}
+                onSelect={d=>{setDashDate(d);}}/>
             </div>
           )}
 
