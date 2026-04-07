@@ -85,6 +85,7 @@
       .pc-split{display:block;}
       .content{padding:12px 14px;}
       .cust-grid{grid-template-columns:1fr!important;}
+      .analytics-3col{grid-template-columns:1fr!important;}
     }
 
     /* 모달 */
@@ -626,6 +627,56 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
 }
 
 
+// ── 날짜 팝업 ────────────────────────────────────────────
+function DayPopup({date,records,customers,onClose,onEdit,onAdd}){
+  const recs=records.filter(r=>r.date===date).sort((a,b)=>a.slot.localeCompare(b.slot));
+  const getC=id=>customers.find(c=>c.id===id||c.id===String(id));
+  const dow=["일","월","화","수","목","금","토"][new Date(date).getDay()];
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",zIndex:200,
+      display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,
+        maxHeight:"75vh",overflowY:"auto",padding:20,paddingBottom:32}} onClick={e=>e.stopPropagation()}>
+        {/* 핸들 */}
+        <div style={{width:36,height:4,background:"#e2e8f0",borderRadius:2,margin:"0 auto 16px"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <div style={{fontWeight:800,fontSize:16}}>{date.replace(/-/g,".")}</div>
+            <div style={{fontSize:11,color:"#94a3b8"}}>{dow}요일 · {recs.length}건</div>
+          </div>
+          <button onClick={()=>onAdd(date)}
+            style={{padding:"7px 14px",background:"#1e293b",color:"#fff",border:"none",
+              borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>+ 예약</button>
+        </div>
+        {recs.length===0?(
+          <div style={{textAlign:"center",padding:"32px 0",color:"#cbd5e1",fontSize:13}}>
+            예약이 없습니다
+          </div>
+        ):recs.map(r=>{
+          const c=getC(r.customerId);
+          return(
+            <div key={r.id} onClick={()=>onEdit(r)}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",
+                borderBottom:"1px solid #f1f5f9",cursor:"pointer"}}>
+              <span className={SLOT_STYLE[r.slot]||"slot-10"}
+                style={{padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700,flexShrink:0}}>{r.slot}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:14}}>{c?.name||c?.phone||"고객"}</div>
+                <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{(r.services||[]).join(" · ")}</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                {r.amount>0&&<div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{fmtKRW(r.amount)}</div>}
+                <div style={{fontSize:10,color:"#94a3b8"}}>{r.payment||""}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 // ── 미니 캘린더 (대시보드용) ─────────────────────────────
 function MiniCalendar({year,month,selDate,calMap,onSelect}){
   const [MY,setMY]=useState(()=>({y:year,m:month}));
@@ -809,6 +860,95 @@ function AnalyticsTab({records}){
         </div>
       )}
 
+      {aView==="monthly"&&(
+        <div className="analytics-3col" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginTop:12}}>
+          {/* 예약구분별 통계 */}
+          <div className="card" style={{padding:12}}>
+            <div style={{fontWeight:800,fontSize:12,marginBottom:10,color:"#1e293b"}}>🏷️ 예약구분별</div>
+            {BOOKING_TYPES.map(bt=>{
+              const recs=records.filter(r=>r.bookingType===bt&&r.date.startsWith(`${aYear}-`));
+              const total=recs.reduce((s,r)=>s+Number(r.amount||0),0);
+              const btc=BT[bt]||BT["신규"];
+              if(!recs.length) return null;
+              return(
+                <div key={bt} style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,
+                      background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{bt}</span>
+                    <span style={{fontSize:11,color:"#94a3b8"}}>{recs.length}건</span>
+                  </div>
+                  <div style={{height:6,background:"#f1f5f9",borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",background:btc.color,borderRadius:3,
+                      width:`${(recs.length/Math.max(...BOOKING_TYPES.map(b=>records.filter(r=>r.bookingType===b&&r.date.startsWith(`${aYear}-`)).length),1))*100}%`}}/>
+                  </div>
+                  <div style={{fontSize:10,color:"#64748b",marginTop:2,textAlign:"right"}}>{fmtKRW(total)}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 네이버 고객 세분화 */}
+          <div className="card" style={{padding:12}}>
+            <div style={{fontWeight:800,fontSize:12,marginBottom:10,color:"#1e293b"}}>🟢 네이버 고객</div>
+            {(()=>{
+              const nRecs=records.filter(r=>r.bookingType==="네이버"&&r.date.startsWith(`${aYear}-`));
+              const total=nRecs.reduce((s,r)=>s+Number(r.amount||0),0);
+              const allRecs=records.filter(r=>r.date.startsWith(`${aYear}-`));
+              const pct=allRecs.length?Math.round(nRecs.length/allRecs.length*100):0;
+              // 월별 네이버 건수
+              const byMonth=Array.from({length:12},(_,i)=>{
+                const prefix=`${aYear}-${String(i+1).padStart(2,"0")}`;
+                return{m:i+1,cnt:nRecs.filter(r=>r.date.startsWith(prefix)).length};
+              }).filter(d=>d.cnt>0);
+              return(
+                <>
+                  <div style={{background:"#f0fdf4",borderRadius:8,padding:"8px 10px",marginBottom:10}}>
+                    <div style={{fontSize:11,color:"#64748b"}}>전체 대비 비율</div>
+                    <div style={{fontSize:18,fontWeight:800,color:"#16a34a"}}>{pct}%</div>
+                    <div style={{fontSize:10,color:"#94a3b8"}}>{nRecs.length}건 / {fmtKRW(total)}</div>
+                  </div>
+                  {byMonth.map(d=>(
+                    <div key={d.m} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                      <span style={{width:24,fontSize:10,color:"#64748b",flexShrink:0}}>{d.m}월</span>
+                      <div style={{flex:1,height:5,background:"#f1f5f9",borderRadius:3}}>
+                        <div style={{height:"100%",background:"#16a34a",borderRadius:3,
+                          width:`${(d.cnt/Math.max(...byMonth.map(x=>x.cnt),1))*100}%`}}/>
+                      </div>
+                      <span style={{fontSize:10,color:"#16a34a",fontWeight:700,flexShrink:0}}>{d.cnt}</span>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+
+          {/* 작업내용 TOP10 */}
+          <div className="card" style={{padding:12}}>
+            <div style={{fontWeight:800,fontSize:12,marginBottom:10,color:"#1e293b"}}>🔧 작업 TOP10</div>
+            {(()=>{
+              const svcCount={};
+              records.filter(r=>r.date.startsWith(`${aYear}-`)).forEach(r=>{
+                (r.services||[]).forEach(s=>{svcCount[s]=(svcCount[s]||0)+1;});
+              });
+              const sorted=Object.entries(svcCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+              const maxCnt=sorted[0]?.[1]||1;
+              return sorted.map(([svc,cnt],i)=>(
+                <div key={svc} style={{marginBottom:5}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                    <span style={{fontSize:10,fontWeight:600,color:"#334155"}}>{i+1}. {svc}</span>
+                    <span style={{fontSize:10,color:"#94a3b8"}}>{cnt}건</span>
+                  </div>
+                  <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
+                    <div style={{height:"100%",background:"#3b82f6",borderRadius:2,
+                      width:`${(cnt/maxCnt)*100}%`}}/>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
       {aView==="yearly"&&(
         <div className="card">
           <div style={{fontWeight:800,fontSize:14,marginBottom:16}}>📊 연도별 매출</div>
@@ -943,6 +1083,7 @@ function App(){
   const [bookingModal,setBookingModal]=useState(null);
   const [custModal,setCustModal]=useState(null);
   const [showAccModal,setShowAccModal]=useState(false);
+  const [dayPopup,setDayPopup]=useState(null);
   const [showSales,setShowSales]=useState(false);
   const [dashDate,setDashDate]=useState(today());
   const [exitToast,setExitToast]=useState(false);
@@ -976,13 +1117,14 @@ function App(){
 
   // 뒤로가기
   useEffect(()=>{
-    stateRef.current={tab,sideOpen,bookingModal,custModal,showAccModal};
+    stateRef.current={tab,sideOpen,bookingModal,custModal,showAccModal,dayPopup};
   });
   useEffect(()=>{
     window.history.pushState({g:1},"","");
     window.history.pushState({g:2},"","");
     const fn=()=>{
       const s=stateRef.current;
+      if(s.dayPopup){setDayPopup(null);window.history.pushState({g:2},"","");return;}
       if(s.bookingModal){setBookingModal(null);window.history.pushState({g:2},"","");return;}
       if(s.custModal){setCustModal(null);window.history.pushState({g:2},"","");return;}
       if(s.showAccModal){setShowAccModal(false);window.history.pushState({g:2},"","");return;}
@@ -1227,7 +1369,7 @@ function App(){
                       isWeek={view==="week"}
                       half={view==="first"?"first":view==="second"?"second":null}
                       selDate={selDate} weekBase={selDate}
-                      onCellClick={ds=>{setSelDate(ds);}}/>
+                      onCellClick={ds=>{setSelDate(ds);setDayPopup(ds);}}/>
                   </div>
                 </div>
                 {/* 우측 패널 */}
@@ -1318,6 +1460,17 @@ function App(){
 
       {/* FAB */}
       <button className="fab" onClick={()=>setBookingModal({date:today(),slot:"10:00",record:null})}>⚡</button>
+
+      {/* 날짜 팝업 */}
+      {dayPopup&&(
+        <DayPopup
+          date={dayPopup}
+          records={records}
+          customers={customers}
+          onClose={()=>setDayPopup(null)}
+          onEdit={r=>{setDayPopup(null);setBookingModal({date:r.date,slot:r.slot,record:r});}}
+          onAdd={d=>{setDayPopup(null);setBookingModal({date:d,slot:"10:00",record:null});}}/>
+      )}
 
       {/* 예약 모달 */}
       {bookingModal&&(
