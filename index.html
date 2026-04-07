@@ -180,6 +180,15 @@ const DEFAULT_ACCOUNTS=[{id:"admin",pw:"1234",role:"admin",name:"관리자"}];
 // ── 유틸 ─────────────────────────────────────────────────
 const today=()=>new Date().toISOString().slice(0,10);
 const fmtKRW=n=>Number(n).toLocaleString("ko-KR")+"원";
+function amtColor(amt,bookingType){
+  if(bookingType==="지메닉") return{bg:"#faf5ff",color:"#7c3aed",border:"#c4b5fd"};
+  const a=Number(amt||0);
+  if(a<=0)   return{bg:"#f8fafc",color:"#94a3b8",border:"#e2e8f0"};
+  if(a<=130000) return{bg:"#f8fafc",color:"#475569",border:"#cbd5e1"};
+  if(a<=300000) return{bg:"#eff6ff",color:"#2563eb",border:"#93c5fd"};
+  if(a<=500000) return{bg:"#f0fdf4",color:"#16a34a",border:"#86efac"};
+  return{bg:"#fffbeb",color:"#d97706",border:"#fcd34d"};
+}
 const WD=d=>["일","월","화","수","목","금","토"][new Date(d).getDay()];
 const addDays=(d,n)=>{const dt=new Date(d);dt.setDate(dt.getDate()+n);return dt.toISOString().slice(0,10);};
 
@@ -692,7 +701,10 @@ function DayPopup({date,records,customers,onClose,onEdit,onAdd}){
                 <div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{(r.services||[]).join(" · ")}</div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
-                {r.amount>0&&<div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{fmtKRW(r.amount)}</div>}
+                {r.amount>0&&(()=>{const ac=amtColor(r.amount,r.bookingType);return(
+                <div style={{fontSize:12,fontWeight:700,padding:"2px 8px",borderRadius:6,
+                  background:ac.bg,color:ac.color,border:`1px solid ${ac.border}`}}>{fmtKRW(r.amount)}</div>
+              );})()}
                 <div style={{fontSize:10,color:"#94a3b8"}}>{r.payment||""}</div>
               </div>
             </div>
@@ -1195,6 +1207,7 @@ function App(){
   const [custModal,setCustModal]=useState(null);
   const [showAccModal,setShowAccModal]=useState(false);
   const [dayPopup,setDayPopup]=useState(null);
+  const [custQ,setCustQ]=useState("");
   const [showSales,setShowSales]=useState(false);
   const [dashDate,setDashDate]=useState(today());
   const [exitToast,setExitToast]=useState(false);
@@ -1225,6 +1238,19 @@ function App(){
   },[records,customers]);
 
   const isAdmin=role==="admin";
+
+  const sortedCustomers=useMemo(()=>{
+    const base=custQ.length>=2?customers.filter(c=>{
+      const q=custQ.trim();
+      const qd=q.replace(/[^0-9]/g,"");
+      return (c.name||"").includes(q)||(qd.length>=2&&(c.phone||"").replace(/[^0-9]/g,"").includes(qd));
+    }):customers;
+    return [...base].sort((a,b)=>{
+      const la=records.filter(r=>r.customerId===a.id||r.customerId===String(a.id)).sort((x,y)=>y.date.localeCompare(x.date))[0]?.date||"";
+      const lb=records.filter(r=>r.customerId===b.id||r.customerId===String(b.id)).sort((x,y)=>y.date.localeCompare(x.date))[0]?.date||"";
+      return lb.localeCompare(la);
+    });
+  },[customers,records,custQ]);
 
   // 뒤로가기
   useEffect(()=>{
@@ -1410,7 +1436,11 @@ function App(){
                         <div style={{fontWeight:700,fontSize:13}}>{c?.name||c?.phone||"고객"}</div>
                         <div style={{fontSize:11,color:"#94a3b8"}}>{(r.services||[]).join(" · ")}</div>
                       </div>
-                      {isAdmin&&<div style={{fontSize:13,fontWeight:700,color:"#1e293b",flexShrink:0}}>{fmtKRW(r.amount)}</div>}
+                      {isAdmin&&(()=>{const ac=amtColor(r.amount,r.bookingType);return(
+                        <div style={{fontSize:12,fontWeight:700,flexShrink:0,padding:"2px 8px",
+                          borderRadius:6,background:ac.bg,color:ac.color,border:`1px solid ${ac.border}`}}>
+                          {fmtKRW(r.amount)}</div>
+                      );})()}
                     </div>
                   );
                 })}
@@ -1518,16 +1548,24 @@ function App(){
           {/* ── 고객 ─────────────────────────────────────── */}
           {tab==="customers"&&(
             <div className="fade-in">
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontWeight:800,fontSize:15}}>고객 ({customers.length}명)</div>
                 <button className="btn-primary" onClick={()=>setCustModal("new")} style={{padding:"7px 14px",fontSize:12}}>+ 신규 등록</button>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-                {[...customers].sort((a,b)=>{
-                  const la=records.filter(r=>r.customerId===a.id||r.customerId===String(a.id)).sort((x,y)=>y.date.localeCompare(x.date))[0]?.date||"";
-                  const lb=records.filter(r=>r.customerId===b.id||r.customerId===String(b.id)).sort((x,y)=>y.date.localeCompare(x.date))[0]?.date||"";
-                  return lb.localeCompare(la);
-                }).map(c=>{
+              {/* 검색창 */}
+              <div style={{position:"relative",marginBottom:12}}>
+                <input className="inp" placeholder="🔍 이름 또는 전화번호 검색 (2글자 이상)"
+                  value={custQ} onChange={e=>setCustQ(e.target.value)}
+                  style={{paddingRight:custQ?36:12}}/>
+                {custQ&&<button onClick={()=>setCustQ("")}
+                  style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+                    background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:16}}>✕</button>}
+              </div>
+              {custQ.length>0&&custQ.length<2&&(
+                <div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"center"}}>2글자 이상 입력하세요</div>
+              )}
+              <div className="cust-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                {sortedCustomers.map(c=>{
                   const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
                   const total=cRecs.reduce((s,r)=>s+Number(r.amount||0),0);
                   const last=[...cRecs].sort((a,b)=>b.date.localeCompare(a.date))[0];
@@ -1544,7 +1582,11 @@ function App(){
                             background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{c.bookingType}</span>
                           <span style={{fontWeight:800,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||c.phone}</span>
                         </div>
-                        {isAdmin&&<span style={{fontSize:11,fontWeight:700,color:"#1e293b",flexShrink:0,marginLeft:4}}>{fmtKRW(total)}</span>}
+                        {isAdmin&&(()=>{const ac=amtColor(total,c.bookingType);return(
+                          <span style={{fontSize:11,fontWeight:700,flexShrink:0,marginLeft:4,
+                            padding:"2px 6px",borderRadius:5,background:ac.bg,color:ac.color,border:`1px solid ${ac.border}`}}>
+                            {fmtKRW(total)}</span>
+                        );})()}
                       </div>
                       {c.name&&<div style={{fontSize:11,color:"#64748b",marginBottom:2}}>{c.phone}</div>}
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1557,6 +1599,9 @@ function App(){
                   );
                 })}
               </div>
+              {custQ&&sortedCustomers.length===0&&(
+                <div style={{textAlign:"center",padding:"40px 0",color:"#cbd5e1",fontSize:13}}>검색 결과가 없습니다</div>
+              )}
             </div>
           )}
 
