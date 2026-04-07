@@ -170,9 +170,7 @@
     @media(min-width:768px){
       .pc-split{display:grid;grid-template-columns:1fr 320px;gap:12px;align-items:start;}
       .pc-sticky{position:sticky;top:72px;}
-      /* PC 캘린더 셀 높이 - topbar(52)+뷰헤더(44)+범례(32)+패딩(32) = 160px */
-      .cal-cell-month { min-height: calc((100vh - 160px) / 5) !important; }
-      .cal-cell-week  { min-height: calc((100vh - 160px) * 0.88) !important; }
+      /* PC 캘린더 셀 높이 JS로 직접 계산 (CELL_H) */
     }
     @media(max-width:767px){
       .pc-split{display:block;}
@@ -429,20 +427,24 @@ function SalesPanel({records,selectedDate,calYear,calMonth,onClose}){
 // ── 달력 ──────────────────────────────────────────────
 function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAddBooking,selectedDate,onDatePopup}){
   const [isPC,setIsPC]=useState(window.innerWidth>=768);
+  const [winH,setWinH]=useState(window.innerHeight);
   useEffect(()=>{
-    const fn=()=>setIsPC(window.innerWidth>=768);
+    const fn=()=>{ setIsPC(window.innerWidth>=768); setWinH(window.innerHeight); };
     window.addEventListener("resize",fn);
     return()=>window.removeEventListener("resize",fn);
   },[]);
-  // PC: 셀 너비 calc 100% 꽉채움 / 모바일: 고정px (가로스크롤)
+  // 셀 너비: PC=calc, 모바일=고정px
   const CELL_W = isPC ? "calc((100% - 6px) / 7)" : "100px";
   const GRID_W = isPC ? "100%" : "calc(100px * 7 + 6px)";
-  // PC: CSS vh 기반으로 셀 높이 계산 (화면 꽉 채우기)
-  // 상단 오프셋: 탭헤더72 + 뷰선택40 + 범례30 + 여백 = 약 160px
+  // 셀 높이: JS로 window.innerHeight 기반 직접 계산
+  // topbar=52, 캘린더헤더(뷰버튼+네비+범례+패딩)=124, 요일헤더=34 → 총 210px
+  const OFFSET = 200; // topbar52+패딩16+뷰행50+범례36+요일헤더34+여유12=200
   const weekCount = isWeek ? 1 : Math.ceil(days.length / 7);
-  const vhOffset = 164; // 상단 UI 합계 (px)
-  // JS 계산은 모바일 fallback용 (PC는 CSS calc로 override)
-  const CELL_H = isWeek ? 110 : 90; // 모바일 기준값
+  const CELL_H = isPC
+    ? (isWeek
+        ? Math.max(160, Math.floor((winH - OFFSET) * 0.88))
+        : Math.max(100, Math.floor((winH - OFFSET) / weekCount)))
+    : (isWeek ? 110 : 90);
   const CELL_PX = isPC ? Math.max(80, Math.floor((window.innerWidth - 490) / 7)) : 100;
   const GAP_PX = 1;
 
@@ -461,10 +463,10 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
 
         {/* 날짜 그리드 */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(7, ${CELL_W})`,gap:1,
-          background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"visible"}}>
+          background:"#e2e8f0",borderRadius:"0 0 10px 10px",overflow:"hidden"}}>
           {days.map((d,i)=>{
             if(!d)return(
-              <div key={`e${i}`} className={isWeek?"cal-cell-week":"cal-cell-month"} style={{background:"#f8fafc",minHeight:isPC?undefined:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
+              <div key={`e${i}`} className={isWeek?"cal-cell-week":"cal-cell-month"} style={{background:"#f8fafc",minHeight:CELL_H,width:CELL_W,boxSizing:"border-box"}}/>
             );
             const ds=isWeek?d:`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
             const isToday=ds===todayStr(),isSel=ds===selectedDate;
@@ -480,7 +482,7 @@ function BigCalendar({days,calYear,calMonth,calendarMap,isWeek,onSelectDate,onAd
                 className={isWeek?"cal-cell-week":"cal-cell-month"}
                 style={{
                   background:isSel?"#1e293b":isToday?"#fffbeb":"#fff",
-                  minHeight:isPC?undefined:CELL_H,
+                  minHeight:CELL_H,
                   width:CELL_W,
                   padding:"5px 4px",
                   cursor:"pointer",
@@ -3039,24 +3041,29 @@ function App(){
   const db=window.__db;
   const {customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord}=useData(db);
 
-  // ── 인증 상태 ─────────────────────────────────────────
+  // ══ 모든 useState/useRef/useEffect는 반드시 조건부 return 앞에 선언 ══
+
+  // ── 인증 상태
   const [role, setRole] = useState(()=>{
     try{
-      const s = localStorage.getItem(AUTH_KEY);
-      if(s){ const p=JSON.parse(s); if(p.role) return p.role; }
-    }catch(e){}
+      const s=localStorage.getItem(AUTH_KEY);
+      if(s){
+        const p=JSON.parse(s);
+        // 세션 만료: 7일 이상 된 세션 무효화
+        if(p.role && p.loginAt && (Date.now()-p.loginAt) < 7*24*60*60*1000) return p.role;
+        // 만료 or 잘못된 세션 → 삭제
+        localStorage.removeItem(AUTH_KEY);
+      }
+    }catch(e){ localStorage.removeItem(AUTH_KEY); }
     return null;
   });
   const [loginName, setLoginName] = useState(()=>{
-    try{
-      const s = localStorage.getItem(AUTH_KEY);
-      if(s){ const p=JSON.parse(s); return p.name||""; }
-    }catch(e){}
+    try{ const s=localStorage.getItem(AUTH_KEY); if(s){const p=JSON.parse(s);return p.name||"";} }catch(e){}
     return "";
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // ── 앱 상태 (모든 Hook은 조건문 앞에 선언 - React 규칙) ──
+  // ── 앱 상태
   const [tab,setTab]=useState("dashboard");
   const [sideOpen,setSideOpen]=useState(false);
   const [selDate,setSelDate]=useState(todayStr());
@@ -3068,57 +3075,49 @@ function App(){
   const [custModal,setCustModal]=useState(null);
   const [dayPopup,setDayPopup]=useState(null);
   const [quickBook,setQuickBook]=useState(false);
+  const [exitToast, setExitToast] = useState(false);
+  const exitToastTimer = useRef(null);
+  const stateRef = useRef({});
   const closeSales=useCallback(()=>setShowSales(false),[]);
 
-  const isAdmin = role === "admin";
-
-  function handleLogout(){
-    localStorage.removeItem(AUTH_KEY);
-    setRole(null);
-  }
-
-  // 미로그인 → 로그인 화면 (Hook 선언 이후에 조건부 렌더링)
-  if(!role) return <LoginScreen db={db} onLogin={(r,n)=>{setRole(r);setLoginName(n||"");}} />;
-
-  // ── 모바일 뒤로가기 핸들러 ─────────────────────────────
-  const stateRef = useRef({});
+  // ── 뒤로가기 ref 동기화
   useEffect(()=>{
     stateRef.current = {tab,sideOpen,bookingModal,custModal,dayPopup,quickBook,showSales};
   });
 
+  // ── 모바일 뒤로가기 핸들러
   useEffect(()=>{
-    // 초기 더미 스택 2개 쌓기 (대시보드 진입 시 여유분 확보)
     window.history.pushState({gmenic:1},"","");
     window.history.pushState({gmenic:2},"","");
-
-    const handlePop = (e)=>{
+    const handlePop = ()=>{
       const s = stateRef.current;
-      // 열린 레이어 우선 닫기
       if(s.bookingModal){ setBookingModal(null); window.history.pushState({gmenic:2},"",""); return; }
       if(s.custModal)   { setCustModal(null);    window.history.pushState({gmenic:2},"",""); return; }
       if(s.dayPopup)    { setDayPopup(null);     window.history.pushState({gmenic:2},"",""); return; }
       if(s.quickBook)   { setQuickBook(false);   window.history.pushState({gmenic:2},"",""); return; }
       if(s.sideOpen)    { setSideOpen(false);    window.history.pushState({gmenic:2},"",""); return; }
       if(s.showSales)   { setShowSales(false);   window.history.pushState({gmenic:2},"",""); return; }
-      // 대시보드 아닌 탭 → 대시보드
-      if(s.tab !== "dashboard"){
-        setTab("dashboard");
-        window.history.pushState({gmenic:2},"","");
-        return;
-      }
-      // 대시보드에서 → 종료 확인 토스트
-      window.history.pushState({gmenic:2},"",""); // 스택 복구 먼저
+      if(s.tab!=="dashboard"){ setTab("dashboard"); window.history.pushState({gmenic:2},"",""); return; }
+      window.history.pushState({gmenic:2},"","");
       setExitToast(true);
       if(exitToastTimer.current) clearTimeout(exitToastTimer.current);
       exitToastTimer.current = setTimeout(()=>setExitToast(false), 2500);
     };
-
     window.addEventListener("popstate", handlePop);
     return ()=>{ window.removeEventListener("popstate", handlePop); };
   },[]);
 
-  const [exitToast, setExitToast] = useState(false);
-  const exitToastTimer = useRef(null);
+  // ── 파생 값 (Hook 아님, 조건부 return 앞뒤 어디든 가능)
+  const isAdmin = role === "admin";
+
+  function handleLogout(){
+    localStorage.removeItem(AUTH_KEY);
+    setRole(null);
+    setLoginName("");
+  }
+
+  // ── 미로그인 → 로그인 화면 (모든 Hook 선언 완료 후)
+  if(!role) return <LoginScreen db={db} onLogin={(r,n)=>{setRole(r);setLoginName(n||"");}} />;
 
   function goPrev(){
     if(view==="week"){setSelDate(d=>addDays(d,-7));return;}
@@ -3326,7 +3325,7 @@ function App(){
               </div>
               <div className="pc-split">
                 <div>
-                  <div style={{borderRadius:12,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",marginBottom:14,border:"1px solid #e2e8f0"}}>
+                  <div style={{borderRadius:12,overflow:"visible",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",marginBottom:14,border:"1px solid #e2e8f0"}}>
                     <BigCalendar days={calDays} calYear={calY} calMonth={calM} calendarMap={calendarMap}
                       isWeek={view==="week"} onSelectDate={setSelDate}
                       onAddBooking={date=>setBookingModal({date,slot:"10:00",record:null})}
