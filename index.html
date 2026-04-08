@@ -422,7 +422,7 @@ function AccountModal({db,onClose}){
 }
 
 // ── 예약 모달 ─────────────────────────────────────────────
-function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust}){
+function BookingModal({modal,customers,isAdmin,onSave,onSaveCust,onDelete,onClose}){
   const ex=modal.record;
   const [date,setDate]=useState(ex?.date||modal.date||today());
   const [slot,setSlot]=useState(ex?.slot||modal.slot||"10:00");
@@ -435,6 +435,9 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
   const [btype,setBtype]=useState(ex?.bookingType||"기존");
   const [q,setQ]=useState("");
   const [svcQ,setSvcQ]=useState("");
+  const [isNewCust,setIsNewCust]=useState(!ex?.customerId);
+  const [newName,setNewName]=useState("");
+  const [newPhone,setNewPhone]=useState("");
 
   const cust=customers.find(c=>c.id===custId);
   const filtered=q.length>=2?customers.filter(c=>{
@@ -445,10 +448,18 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
   function toggleSvc(s){setServices(prev=>prev.includes(s)?prev.filter(x=>x!==s):[...prev,s]);}
 
   async function handleSave(){
-    if(!custId){alert("고객을 선택해주세요.");return;}
+    let finalCustId=custId;
+    if(isNewCust){
+      if(!newName.trim()&&!newPhone.trim()){alert("고객명 또는 전화번호를 입력해주세요.");return;}
+      const newId=String(Date.now());
+      await onSaveCust({id:newId,name:newName.trim(),phone:newPhone.trim(),bookingType:btype,cars:[],memo:""});
+      finalCustId=newId;
+    } else {
+      if(!finalCustId){alert("고객을 선택해주세요.");return;}
+    }
     if(!services.length){alert("작업내용을 선택해주세요.");return;}
     if(isAdmin&&!amount){alert("금액을 입력해주세요.");return;}
-    await onSave({id:ex?.id,date,slot,customerId:custId,services,amount:Number(amount||0),payment,memo,bookingType:btype,multiDay:Number(multiDay||1)});
+    await onSave({id:ex?.id,date,slot,customerId:finalCustId,services,amount:Number(amount||0),payment,memo,bookingType:btype,multiDay:Number(multiDay||1)});
     onClose();
   }
 
@@ -474,33 +485,54 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
               {SLOTS.map(s=><button key={s} className={`chip ${slot===s?"active":""}`} onClick={()=>setSlot(s)}>{s}</button>)}
             </div>
           </div>
-          {/* 고객 검색 */}
+          {/* 고객 */}
           <div>
-            <span className="label">👤 고객</span>
-            {cust?(
-              <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",
-                background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
-                <span style={{flex:1,fontWeight:700,fontSize:13}}>{cust.name||cust.phone}</span>
-                <button onClick={()=>{setCustId("");setQ("");}} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}}>변경</button>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+              <span className="label" style={{marginBottom:0}}>👤 고객</span>
+              <div style={{display:"flex",background:"#f1f5f9",borderRadius:6,padding:2,gap:1}}>
+                <button onClick={()=>{setIsNewCust(false);setCustId("");setQ("");}}
+                  style={{padding:"3px 10px",border:"none",borderRadius:5,fontSize:11,fontWeight:700,cursor:"pointer",
+                    background:!isNewCust?"#1e293b":"transparent",color:!isNewCust?"#fff":"#94a3b8"}}>기존 고객</button>
+                <button onClick={()=>{setIsNewCust(true);setCustId("");}}
+                  style={{padding:"3px 10px",border:"none",borderRadius:5,fontSize:11,fontWeight:700,cursor:"pointer",
+                    background:isNewCust?"#1e293b":"transparent",color:isNewCust?"#fff":"#94a3b8"}}>신규 고객</button>
               </div>
-            ):(
-              <div style={{position:"relative"}}>
-                <input className="inp" placeholder="이름 또는 전화번호 검색" value={q} onChange={e=>setQ(e.target.value)}/>
-                {filtered.length>0&&(
-                  <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#fff",
-                    border:"1px solid #e2e8f0",borderRadius:8,zIndex:10,boxShadow:"0 4px 12px rgba(0,0,0,0.1)",maxHeight:200,overflowY:"auto"}}>
-                    {filtered.map(c=>(
-                      <div key={c.id} onClick={()=>{setCustId(c.id);setQ("");}}
-                        style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9"}}
-                        onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
-                        onMouseLeave={e=>e.currentTarget.style.background=""}>
-                        <span style={{fontWeight:700}}>{c.name||c.phone}</span>
-                        {c.name&&<span style={{color:"#94a3b8",marginLeft:8,fontSize:12}}>{c.phone}</span>}
-                      </div>
-                    ))}
-                    <div onClick={onNewCust} style={{padding:"10px 14px",cursor:"pointer",fontSize:13,color:"#3b82f6",fontWeight:700}}>+ 신규 고객 등록</div>
-                  </div>
-                )}
+            </div>
+            {!isNewCust&&(
+              cust?(
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",
+                  background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
+                  <span style={{flex:1,fontWeight:700,fontSize:13}}>{cust.name||cust.phone}</span>
+                  <span style={{fontSize:11,color:"#94a3b8"}}>{cust.phone}</span>
+                  <button onClick={()=>{setCustId("");setQ("");}}
+                    style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}}>변경</button>
+                </div>
+              ):(
+                <div style={{position:"relative"}}>
+                  <input className="inp" placeholder="이름 또는 전화번호 검색 (2글자 이상)" value={q} onChange={e=>setQ(e.target.value)}/>
+                  {filtered.length>0&&(
+                    <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#fff",
+                      border:"1px solid #e2e8f0",borderRadius:8,zIndex:10,
+                      boxShadow:"0 4px 12px rgba(0,0,0,0.1)",maxHeight:200,overflowY:"auto"}}>
+                      {filtered.map(c=>(
+                        <div key={c.id} onClick={()=>{setCustId(c.id);setQ("");}}
+                          style={{padding:"10px 14px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f1f5f9"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                          onMouseLeave={e=>e.currentTarget.style.background=""}>
+                          <span style={{fontWeight:700}}>{c.name||c.phone}</span>
+                          {c.name&&<span style={{color:"#94a3b8",marginLeft:8,fontSize:12}}>{c.phone}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+            {isNewCust&&(
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <input className="inp" placeholder="고객명" value={newName} onChange={e=>setNewName(e.target.value)}/>
+                <input className="inp" placeholder="전화번호 (예: 010-1234-5678)" value={newPhone} onChange={e=>setNewPhone(e.target.value)}/>
+                <div style={{fontSize:10,color:"#94a3b8"}}>저장 시 자동으로 고객이 등록됩니다</div>
               </div>
             )}
           </div>
@@ -533,9 +565,28 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
           {/* 작업내용 */}
           <div>
             <span className="label">🔧 작업내용</span>
-            <input className="inp" style={{marginBottom:7,fontSize:12}} placeholder="검색..." value={svcQ} onChange={e=>setSvcQ(e.target.value)}/>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5,maxHeight:140,overflowY:"auto",padding:2}}>
-              {SERVICES.filter(s=>s.includes(svcQ)).map(s=>(
+            <div style={{display:"flex",gap:6,marginBottom:7}}>
+              <input className="inp" style={{fontSize:12,flex:1}} placeholder="검색 또는 직접입력..." value={svcQ}
+                onChange={e=>setSvcQ(e.target.value)}
+                onKeyDown={e=>{
+                  if((e.key==="Enter"||e.key===",")&&svcQ.trim()){
+                    e.preventDefault();
+                    const items=svcQ.split(",").map(s=>s.trim()).filter(Boolean);
+                    items.forEach(s=>{if(!services.includes(s)) setServices(prev=>[...prev,s]);});
+                    setSvcQ("");
+                  }
+                }}/>
+              <button onClick={()=>{
+                  if(svcQ.trim()){
+                    const items=svcQ.split(",").map(s=>s.trim()).filter(Boolean);
+                    items.forEach(s=>{if(!services.includes(s)) setServices(prev=>[...prev,s]);});
+                    setSvcQ("");
+                  }
+                }}
+                style={{padding:"0 12px",background:"#1e293b",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>추가</button>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,maxHeight:120,overflowY:"auto",padding:2}}>
+              {SERVICES.filter(s=>!svcQ||s.includes(svcQ)).map(s=>(
                 <button key={s} className={`chip ${services.includes(s)?"active":""}`}
                   onClick={()=>toggleSvc(s)} style={{fontSize:11,padding:"4px 10px"}}>{s}</button>
               ))}
@@ -587,13 +638,14 @@ function BookingModal({modal,customers,isAdmin,onSave,onDelete,onClose,onNewCust
 function CustomerModal({customer,records,onSave,onDelete,onClose}){
   const [name,setName]=useState(customer?.name||"");
   const [phone,setPhone]=useState(customer?.phone||"");
-  const [cars,setCars]=useState((customer?.cars||[]).join(", "));
+  const [carList,setCarList]=useState(customer?.cars||[]);
+  const [carInput,setCarInput]=useState("");
   const [btype,setBtype]=useState(customer?.bookingType||"신규");
   const [memo,setMemo]=useState(customer?.memo||"");
 
   async function handleSave(){
     if(!name&&!phone){alert("이름 또는 전화번호를 입력해주세요.");return;}
-    await onSave({id:customer?.id,name,phone,cars:cars.split(",").map(s=>s.trim()).filter(Boolean),bookingType:btype,memo});
+    await onSave({id:customer?.id,name,phone,cars:carList,bookingType:btype,memo});
     onClose();
   }
 
@@ -644,7 +696,41 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
           )}
           <div><span className="label">이름</span><input className="inp" placeholder="홍길동" value={name} onChange={e=>setName(e.target.value)}/></div>
           <div><span className="label">전화번호</span><input className="inp" placeholder="010-0000-0000" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
-          <div><span className="label">차량 (쉼표 구분)</span><input className="inp" placeholder="벤츠 E300, BMW 520d" value={cars} onChange={e=>setCars(e.target.value)}/></div>
+          <div>
+            <span className="label">🚗 차종</span>
+            <div style={{display:"flex",gap:6,marginBottom:6}}>
+              <input className="inp" style={{flex:1}} placeholder="차종 입력 후 Enter 또는 쉼표" value={carInput||""}
+                onChange={e=>setCarInput(e.target.value)}
+                onKeyDown={e=>{
+                  if((e.key==="Enter"||e.key===",")&&(carInput||"").trim()){
+                    e.preventDefault();
+                    const items=(carInput||"").split(",").map(s=>s.trim()).filter(Boolean);
+                    setCarList(prev=>[...prev,...items.filter(s=>!prev.includes(s))]);
+                    setCarInput("");
+                  }
+                }}/>
+              <button onClick={()=>{
+                  if((carInput||"").trim()){
+                    const items=(carInput||"").split(",").map(s=>s.trim()).filter(Boolean);
+                    setCarList(prev=>[...prev,...items.filter(s=>!prev.includes(s))]);
+                    setCarInput("");
+                  }
+                }}
+                style={{padding:"0 12px",background:"#1e293b",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>추가</button>
+            </div>
+            {carList.length>0&&(
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {carList.map(c=>(
+                  <span key={c} style={{fontSize:11,background:"#f1f5f9",color:"#475569",padding:"3px 10px",
+                    borderRadius:5,display:"flex",alignItems:"center",gap:4}}>
+                    {c}
+                    <span onClick={()=>setCarList(prev=>prev.filter(x=>x!==c))}
+                      style={{cursor:"pointer",color:"#94a3b8",fontWeight:700}}>✕</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           <div>
             <span className="label">구분</span>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -1299,7 +1385,7 @@ function App(){
 
   // ── 메뉴 목록 ──────────────────────────────────────────
   const MENUS=[
-    {id:"dashboard",icon:"📊",label:"대시보드"},
+    {id:"dashboard",icon:"📊",label:"DASHBOARD"},
     {id:"calendar",icon:"📅",label:"캘린더"},
     {id:"customers",icon:"👥",label:"고객"},
     ...(isAdmin?[{id:"analytics",icon:"📈",label:"분석"}]:[]),
@@ -1379,7 +1465,7 @@ function App(){
             <button className="mob-menu-btn" onClick={()=>setSideOpen(v=>!v)}
               style={{background:"none",border:"none",fontSize:20,cursor:"pointer",width:36,height:36}}>☰</button>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:2,color:"#1e293b"}}>
-              {MENUS.find(m=>m.id===tab)?.label||"G-MENIC"}
+              {tab==="dashboard"?"DASHBOARD":MENUS.find(m=>m.id===tab)?.label||"G-MENIC"}
             </div>
           </div>
           <div style={{fontSize:12,color:"#94a3b8"}}>{today().replace(/-/g,".")} {WD(today())}</div>
@@ -1636,8 +1722,7 @@ function App(){
       {/* 예약 모달 */}
       {bookingModal&&(
         <BookingModal modal={bookingModal} customers={customers} isAdmin={isAdmin}
-          onSave={saveRecord} onDelete={deleteRecord} onClose={()=>setBookingModal(null)}
-          onNewCust={()=>{setBookingModal(null);setCustModal("new");}}/>
+          onSave={saveRecord} onSaveCust={saveCustomer} onDelete={deleteRecord} onClose={()=>setBookingModal(null)}/>
       )}
 
       {/* 고객 모달 */}
