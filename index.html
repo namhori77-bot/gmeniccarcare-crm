@@ -131,9 +131,9 @@
       font-size:13px;font-weight:600;z-index:999;white-space:nowrap;}
 
     /* 대시보드 */
-    .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
-    .stat-card{border-radius:14px;padding:18px 16px;color:#fff;}
-    @media(max-width:767px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+    .stat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;}
+    .stat-card{border-radius:12px;padding:14px 12px;color:#fff;}
+    @media(max-width:767px){.stat-grid{grid-template-columns:repeat(3,1fr);}}
 
     /* FAB */
     .fab{display:none;position:fixed;bottom:24px;right:20px;z-index:90;width:56px;height:56px;
@@ -1426,6 +1426,11 @@ function App(){
   const thisY=new Date().getFullYear();
   const monthTotal=records.filter(r=>r.date.startsWith(`${thisY}-${String(thisM+1).padStart(2,"0")}`)).reduce((s,r)=>s+Number(r.amount||0),0);
   const todayTotal=todayRecs.reduce((s,r)=>s+Number(r.amount||0),0);
+  const todayCash=todayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount||0),0);
+  const todayCard=todayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount||0),0);
+  const thisYM=`${thisY}-${String(thisM+1).padStart(2,"0")}`;
+  const monthCustIds=new Set(records.filter(r=>r.date.startsWith(thisYM)).map(r=>String(r.customerId)));
+  const monthVisitors=monthCustIds.size;
   const isToday=dashDate===today();
 
   return(
@@ -1523,10 +1528,13 @@ function App(){
                 {[
                   {label:`${isToday?"오늘":"선택일"} 예약`,val:`${todayRecs.length}건`,bg:"linear-gradient(135deg,#1e40af,#3b82f6)"},
                   ...(isAdmin?[
-                    {label:"오늘 매출",val:fmtKRW(todayTotal),bg:"linear-gradient(135deg,#065f46,#10b981)",click:()=>setShowSales(true)},
+                    {label:`${isToday?"오늘":"선택일"} 매출`,val:fmtKRW(todayTotal),bg:"linear-gradient(135deg,#065f46,#10b981)",click:()=>setShowSales(true)},
+                    {label:"현금 매출",val:fmtKRW(todayCash),bg:"linear-gradient(135deg,#064e3b,#059669)"},
+                    {label:"카드 매출",val:fmtKRW(todayCard),bg:"linear-gradient(135deg,#1e3a5f,#2563eb)"},
                     {label:"이달 매출",val:fmtKRW(monthTotal),bg:"linear-gradient(135deg,#7c2d12,#ea580c)",click:()=>setShowSales(true)},
+                    {label:"이달 방문고객",val:`${monthVisitors}명`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"},
                   ]:[]),
-                  {label:"전체 고객",val:`${customers.length}명`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"},
+                  ...(!isAdmin?[{label:"전체 고객",val:`${customers.length}명`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"}]:[]),
                 ].map((s,i)=>(
                   <div key={i} className="stat-card" style={{background:s.bg,cursor:s.click?"pointer":"default"}}
                     onClick={s.click}>
