@@ -17,7 +17,13 @@
   <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
-    html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;}
+    html,body{
+      touch-action:manipulation;
+      -webkit-text-size-adjust:100%;
+      -ms-text-size-adjust:100%;
+      overscroll-behavior:none;
+    }
+    *{-webkit-tap-highlight-color:transparent;}
     body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;}
     ::-webkit-scrollbar{width:4px;height:4px;}
     ::-webkit-scrollbar-track{background:transparent;}
@@ -109,6 +115,9 @@
 
       /* ── 고객: 1열 꽉차게 ── */
       .cust-grid{grid-template-columns:1fr !important;}
+      .cust-grid>div{padding:8px 10px !important;}
+      .cust-grid .cust-name{font-size:14px !important;}
+      .cust-grid .cust-sub{font-size:11px !important;}
 
       /* ── 분석: 1열 ── */
       .analytics-3col{grid-template-columns:1fr !important;}
@@ -183,6 +192,17 @@
     @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
     .fade-in{animation:fadeIn 0.25s ease;}
   </style>
+<script>
+// 핀치줌 완전 차단
+document.addEventListener('touchstart', function(e){if(e.touches.length>1)e.preventDefault();},{passive:false});
+document.addEventListener('touchmove', function(e){if(e.touches.length>1)e.preventDefault();},{passive:false});
+var lastTouch=0;
+document.addEventListener('touchend',function(e){
+  var now=Date.now();
+  if(now-lastTouch<300)e.preventDefault();
+  lastTouch=now;
+},{passive:false});
+</script>
 </head>
 <body>
 <div id="root"></div>
@@ -1565,9 +1585,9 @@ function App(){
                   {label:`${isToday?"오늘":"선택일"} 예약`,val:`${todayRecs.length}건`,bg:"linear-gradient(135deg,#1e40af,#3b82f6)"},
                   ...(isAdmin?[
                     {label:`${isToday?"오늘":"선택일"} 매출`,val:fmtKRW(todayTotal),bg:"linear-gradient(135deg,#065f46,#10b981)",click:()=>setShowSales(true)},
+                    {label:"이달 매출",val:fmtKRW(monthTotal),bg:"linear-gradient(135deg,#7c2d12,#ea580c)",click:()=>setShowSales(true)},
                     {label:"현금 매출",val:fmtKRW(todayCash),bg:"linear-gradient(135deg,#064e3b,#059669)"},
                     {label:"카드 매출",val:fmtKRW(todayCard),bg:"linear-gradient(135deg,#1e3a5f,#2563eb)"},
-                    {label:"이달 매출",val:fmtKRW(monthTotal),bg:"linear-gradient(135deg,#7c2d12,#ea580c)",click:()=>setShowSales(true)},
                     {label:"이달 입고",val:`${monthVisitors}건`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"},
                   ]:[]),
                   ...(!isAdmin?[{label:"전체 고객",val:`${customers.length}명`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"}]:[]),
@@ -1692,7 +1712,7 @@ function App(){
               {custQ.length>0&&custQ.length<2&&(
                 <div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"center"}}>2글자 이상 입력하세요</div>
               )}
-              <div className="cust-grid" style={{display:"grid",gridTemplateColumns:window.innerWidth<768?"1fr":"repeat(3,1fr)",gap:8}}>
+              <div className="cust-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
                 {sortedCustomers.map(c=>{
                   const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
                   const total=cRecs.reduce((s,r)=>s+Number(r.amount||0),0);
@@ -1700,8 +1720,7 @@ function App(){
                   const btc=BT[c.bookingType]||BT["신규"];
                   return(
                     <div key={c.id} onClick={()=>setCustModal(c)}
-                      style={{background:"#fff",borderRadius:10,
-                        padding:window.innerWidth<768?"8px 10px":"10px 12px",
+                      style={{background:"#fff",borderRadius:10,padding:"10px 12px",
                         border:"1px solid #e2e8f0",cursor:"pointer",transition:"box-shadow 0.15s"}}
                       onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.08)"}
                       onMouseLeave={e=>e.currentTarget.style.boxShadow=""}>
