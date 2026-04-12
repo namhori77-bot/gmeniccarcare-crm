@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
   <meta name="version" content="20260408010201"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no"/>
   <title>G-MENIC CRM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet"/>
@@ -75,6 +75,14 @@
       .cal-cell{min-height:calc((100vh - 220px) / var(--week-count, 5));}
       .pc-split{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start;}
       .pc-sticky{position:sticky;top:68px;}
+    @media(max-width:767px){
+      .pc-sticky{position:static;margin-top:10px;}
+      .pc-sticky .card{
+        max-height:240px;
+        overflow-y:auto;
+        border-radius:12px;
+      }
+    }
     }
 
     /* 모바일 */
@@ -1652,14 +1660,20 @@ function App(){
                       const c=getC(r.customerId);
                       return(
                         <div key={r.id} onClick={()=>setBookingModal({date:r.date,slot:r.slot,record:r})}
-                          style={{padding:"10px 0",borderBottom:"1px solid #f1f5f9",cursor:"pointer"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                            <span className={SLOT_STYLE[r.slot]||"slot-10"}
-                              style={{padding:"3px 8px",borderRadius:5,fontSize:10,fontWeight:700}}>{r.slot}</span>
-                            <span style={{fontWeight:700,fontSize:13}}>{c?.name||c?.phone||"고객"}</span>
+                          style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9",cursor:"pointer",
+                            display:"flex",alignItems:"center",gap:8}}>
+                          <span className={SLOT_STYLE[r.slot]||"slot-10"}
+                            style={{padding:"3px 7px",borderRadius:5,fontSize:10,fontWeight:700,flexShrink:0}}>{r.slot}</span>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:700,fontSize:12,display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c?.name||c?.phone||"고객"}</span>
+                              {isAdmin&&r.amount>0&&(()=>{const ac=amtColor(r.amount,r.bookingType);return(
+                                <span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,flexShrink:0,
+                                  background:ac.bg,color:ac.color,border:`1px solid ${ac.border}`}}>{fmtKRW(r.amount)}</span>
+                              );})()}
+                            </div>
+                            <div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(r.services||[]).join(" · ")}</div>
                           </div>
-                          <div style={{fontSize:11,color:"#94a3b8",marginLeft:2}}>{(r.services||[]).join(" · ")}</div>
-                          {isAdmin&&r.amount>0&&<div style={{fontSize:12,fontWeight:700,color:"#1e293b",marginTop:2}}>{fmtKRW(r.amount)}</div>}
                         </div>
                       );
                     })}
