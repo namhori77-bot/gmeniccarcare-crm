@@ -17,6 +17,7 @@
   <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;}
     body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;}
     ::-webkit-scrollbar{width:4px;height:4px;}
     ::-webkit-scrollbar-track{background:transparent;}
@@ -95,9 +96,31 @@
       .main{margin-left:0;}
       .mob-menu-btn{display:flex;align-items:center;justify-content:center;}
       .pc-split{display:block;}
-      .content{padding:12px 14px;}
+
+      /* 탭별 콘텐츠 패딩 */
+      .content{padding:8px 10px;}
+
+      /* 대시보드 - 3열 stat */
+      .stat-card{padding:10px 8px;}
+      .stat-card>div:last-child{font-size:15px!important;}
+
+      /* 캘린더 - 좌우 스와이프 고정, 확대 없음 */
+      .cal-wrap{
+        overflow-x:auto;
+        overflow-y:hidden;
+        -webkit-overflow-scrolling:touch;
+        touch-action:pan-x;
+      }
+
+      /* 고객 - 1열 */
       .cust-grid{grid-template-columns:1fr!important;}
+
+      /* 분석 - 1열 */
       .analytics-3col{grid-template-columns:1fr!important;}
+
+      /* 모달 - 화면 꽉 채움 */
+      .modal{max-width:100%!important;margin:0;border-radius:0;}
+      .modal-bg{padding:0;align-items:flex-end;}
     }
 
     /* 모달 */
