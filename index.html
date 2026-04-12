@@ -36,7 +36,7 @@
     .main{margin-left:200px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
     .topbar{background:#fff;border-bottom:1px solid #e2e8f0;height:52px;display:flex;
       align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:50;}
-    .content{padding:16px 20px;flex:1;}
+    .content{padding:16px 20px;flex:1;overflow-x:hidden;}
 
     /* 사이드바 */
     .sb-logo{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,0.07);}
@@ -114,7 +114,8 @@
       }
 
       /* ── 고객: 1열 꽉차게 ── */
-      .cust-grid{grid-template-columns:1fr !important;}
+      .cust-grid{grid-template-columns:1fr !important;overflow:hidden;}
+      .cust-grid>div{width:100% !important;box-sizing:border-box !important;}
       .cust-grid>div{padding:8px 10px !important;}
       .cust-grid .cust-name{font-size:14px !important;}
       .cust-grid .cust-sub{font-size:11px !important;}
@@ -522,8 +523,12 @@ function BookingModal({modal,customers,isAdmin,onSave,onSaveCust,onDelete,onClos
     }
     if(!services.length){alert("작업내용을 선택해주세요.");return;}
     if(isAdmin&&!amount){alert("금액을 입력해주세요.");return;}
+    // 차량: 기존고객이면 고객 차량 첫번째, 신규면 newCarList 첫번째
+    const custForCar=customers.find(c=>c.id===finalCustId||c.id===String(finalCustId));
+    const carVal=custForCar?.cars?.[0]||(newCarList?.[0]||"");
     await onSave({id:ex?.id,date,slot,customerId:finalCustId,services,
-      amount:Number(amount||0),payment,memo,bookingType:btype,multiDay:Number(multiDay||1)});
+      amount:Number(amount||0),payment,memo,bookingType:btype,multiDay:Number(multiDay||1),
+      car:carVal});
     onClose();
   }
 
@@ -778,8 +783,9 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
                           </div>
                           <span style={{fontWeight:700,color:"#1e293b"}}>{fmtKRW(r.amount)}</span>
                         </div>
+                        {r.car&&<div style={{fontSize:10,color:"#3b82f6",fontWeight:600,marginBottom:1}}>🚗 {r.car}</div>}
                         {r.services?.length>0&&(
-                          <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{r.services.join(" · ")}</div>
+                          <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{r.services.join(" · ")}</div>
                         )}
                       </div>
                     ))}
@@ -1730,11 +1736,7 @@ function App(){
                             background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{c.bookingType}</span>
                           <span style={{fontWeight:800,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||c.phone}</span>
                         </div>
-                        {isAdmin&&(()=>{const ac=amtColor(total,c.bookingType);return(
-                          <span style={{fontSize:11,fontWeight:700,flexShrink:0,marginLeft:4,
-                            padding:"2px 6px",borderRadius:5,background:ac.bg,color:ac.color,border:`1px solid ${ac.border}`}}>
-                            {fmtKRW(total)}</span>
-                        );})()}
+                        {isAdmin&&<span style={{fontSize:11,fontWeight:700,color:"#1e293b",flexShrink:0,marginLeft:4}}>{fmtKRW(total)}</span>}
                       </div>
                       {c.name&&<div style={{fontSize:11,color:"#64748b",marginBottom:2}}>{c.phone}</div>}
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
