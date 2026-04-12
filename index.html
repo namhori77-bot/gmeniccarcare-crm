@@ -1437,8 +1437,7 @@ function App(){
   const todayCash=todayRecs.filter(r=>r.payment==="현금").reduce((s,r)=>s+Number(r.amount||0),0);
   const todayCard=todayRecs.filter(r=>r.payment==="카드").reduce((s,r)=>s+Number(r.amount||0),0);
   const thisYM=`${thisY}-${String(thisM+1).padStart(2,"0")}`;
-  const monthCustIds=new Set(records.filter(r=>r.date.startsWith(thisYM)).map(r=>String(r.customerId)));
-  const monthVisitors=monthCustIds.size;
+  const monthVisitors=records.filter(r=>r.date.startsWith(thisYM)).length;
   const isToday=dashDate===today();
 
   return(
@@ -1540,7 +1539,7 @@ function App(){
                     {label:"현금 매출",val:fmtKRW(todayCash),bg:"linear-gradient(135deg,#064e3b,#059669)"},
                     {label:"카드 매출",val:fmtKRW(todayCard),bg:"linear-gradient(135deg,#1e3a5f,#2563eb)"},
                     {label:"이달 매출",val:fmtKRW(monthTotal),bg:"linear-gradient(135deg,#7c2d12,#ea580c)",click:()=>setShowSales(true)},
-                    {label:"이달 방문고객",val:`${monthVisitors}명`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"},
+                    {label:"이달 입고",val:`${monthVisitors}건`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"},
                   ]:[]),
                   ...(!isAdmin?[{label:"전체 고객",val:`${customers.length}명`,bg:"linear-gradient(135deg,#4c1d95,#7c3aed)"}]:[]),
                 ].map((s,i)=>(
