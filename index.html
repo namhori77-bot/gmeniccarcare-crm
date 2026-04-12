@@ -816,12 +816,11 @@ function DayPopup({date,records,customers,onClose,onEdit,onAdd}){
   const getC=id=>customers.find(c=>c.id===id||c.id===String(id));
   const dow=["일","월","화","수","목","금","토"][new Date(date).getDay()];
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",zIndex:200,
-      display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,
-        maxHeight:"75vh",overflowY:"auto",padding:20,paddingBottom:32}} onClick={e=>e.stopPropagation()}>
-        {/* 핸들 */}
-        <div style={{width:36,height:4,background:"#e2e8f0",borderRadius:2,margin:"0 auto 16px"}}/>
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",zIndex:200,
+      display:"flex",alignItems:"center",justifyContent:"center",padding:"0 16px"}} onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:400,
+        maxHeight:"70vh",overflowY:"auto",padding:"16px 16px 20px",
+        boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <div>
             <div style={{fontWeight:800,fontSize:16}}>{date.replace(/-/g,".")}</div>
