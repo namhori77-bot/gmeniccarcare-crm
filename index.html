@@ -75,21 +75,14 @@
     @media(min-width:768px){
       .cal-cell{min-height:calc((100vh - 220px) / var(--week-count, 5));}
       .pc-split{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start;}
-      .pc-sticky{position:sticky;top:68px;}
-    @media(max-width:767px){
-      .pc-sticky{position:static;margin-top:8px;}
-      .pc-sticky .card{
-        height:220px;
-        overflow-y:auto;
-        border-radius:12px;
-      }
-    }
+
     }
 
     /* 모바일 */
     .mob-menu-btn{display:none;}
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;}
     @media(max-width:767px){
+      /* ── 기본 레이아웃 ── */
       .sidebar{transform:translateX(-200px);}
       .sidebar.open{transform:translateX(0);}
       .overlay.show{display:block;}
@@ -97,30 +90,44 @@
       .mob-menu-btn{display:flex;align-items:center;justify-content:center;}
       .pc-split{display:block;}
 
-      /* 탭별 콘텐츠 패딩 */
-      .content{padding:8px 10px;}
+      /* ── 콘텐츠 패딩 최소화 ── */
+      .content{padding:6px 8px !important;}
 
-      /* 대시보드 - 3열 stat */
-      .stat-card{padding:10px 8px;}
-      .stat-card>div:last-child{font-size:15px!important;}
+      /* ── 대시보드: 3열 stat 카드 ── */
+      .stat-grid{grid-template-columns:repeat(3,1fr) !important;gap:6px !important;margin-bottom:10px !important;}
+      .stat-card{padding:8px 6px !important;border-radius:10px !important;}
+      .stat-card>div:first-child{font-size:9px !important;}
+      .stat-card>div:last-child{font-size:13px !important;}
 
-      /* 캘린더 - 좌우 스와이프 고정, 확대 없음 */
+      /* ── 캘린더: 좌우 스와이프만 허용 ── */
       .cal-wrap{
-        overflow-x:auto;
-        overflow-y:hidden;
+        overflow-x:auto !important;
+        overflow-y:hidden !important;
         -webkit-overflow-scrolling:touch;
-        touch-action:pan-x;
+        touch-action:pan-x !important;
       }
 
-      /* 고객 - 1열 */
-      .cust-grid{grid-template-columns:1fr!important;}
+      /* ── 고객: 1열 꽉차게 ── */
+      .cust-grid{grid-template-columns:1fr !important;}
 
-      /* 분석 - 1열 */
-      .analytics-3col{grid-template-columns:1fr!important;}
+      /* ── 분석: 1열 ── */
+      .analytics-3col{grid-template-columns:1fr !important;}
 
-      /* 모달 - 화면 꽉 채움 */
-      .modal{max-width:100%!important;margin:0;border-radius:0;}
-      .modal-bg{padding:0;align-items:flex-end;}
+      /* ── 모달: 하단 풀스크린 ── */
+      .modal{
+        max-width:100% !important;
+        width:100% !important;
+        margin:0 !important;
+        border-radius:16px 16px 0 0 !important;
+        max-height:92vh !important;
+      }
+      .modal-bg{
+        padding:0 !important;
+        align-items:flex-end !important;
+      }
+
+      /* ── card 패딩 ── */
+      .card{padding:12px !important;}
     }
 
     /* 모달 */
@@ -1656,50 +1663,12 @@ function App(){
                     background:"#f1f5f9",border:"1px solid #e2e8f0",color:"#64748b",cursor:"pointer"}}>종일도 동일</span>
               </div>
               {/* PC 스플릿 레이아웃 */}
-              <div className="pc-split">
-                <div>
-                  <div style={{borderRadius:12,overflow:"hidden",border:"1px solid #e2e8f0",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
-                    <BigCalendar year={calY} month={calM} calMap={calMap}
-                      isWeek={view==="week"}
-                      half={view==="first"?"first":view==="second"?"second":null}
-                      selDate={selDate} weekBase={selDate}
-                      onCellClick={ds=>{setSelDate(ds);setDayPopup(ds);}}/>
-                  </div>
-                </div>
-                {/* 우측 패널 */}
-                <div className="pc-sticky">
-                  <div className="card">
-                    <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>
-                      {selDate.replace(/-/g,".")} {WD(selDate)}
-                      <button onClick={()=>openBooking(selDate,"10:00")}
-                        style={{float:"right",padding:"4px 10px",background:"#1e293b",color:"#fff",
-                          border:"none",borderRadius:6,fontSize:11,fontWeight:700,cursor:"pointer"}}>+ 예약</button>
-                    </div>
-                    {selRecs.length===0?(
-                      <div style={{textAlign:"center",padding:"20px 0",color:"#cbd5e1",fontSize:12}}>예약 없음</div>
-                    ):selRecs.map(r=>{
-                      const c=getC(r.customerId);
-                      return(
-                        <div key={r.id} onClick={()=>setBookingModal({date:r.date,slot:r.slot,record:r})}
-                          style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9",cursor:"pointer",
-                            display:"flex",alignItems:"center",gap:8}}>
-                          <span className={SLOT_STYLE[r.slot]||"slot-10"}
-                            style={{padding:"3px 7px",borderRadius:5,fontSize:10,fontWeight:700,flexShrink:0}}>{r.slot}</span>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontWeight:700,fontSize:12,display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c?.name||c?.phone||"고객"}</span>
-                              {isAdmin&&r.amount>0&&(()=>{const ac=amtColor(r.amount,r.bookingType);return(
-                                <span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,flexShrink:0,
-                                  background:ac.bg,color:ac.color,border:`1px solid ${ac.border}`}}>{fmtKRW(r.amount)}</span>
-                              );})()}
-                            </div>
-                            <div style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(r.services||[]).join(" · ")}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div style={{borderRadius:12,overflow:"hidden",border:"1px solid #e2e8f0",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
+                <BigCalendar year={calY} month={calM} calMap={calMap}
+                  isWeek={view==="week"}
+                  half={view==="first"?"first":view==="second"?"second":null}
+                  selDate={selDate} weekBase={selDate}
+                  onCellClick={ds=>{setSelDate(ds);setDayPopup(ds);}}/>
               </div>
             </div>
           )}
