@@ -77,9 +77,9 @@
       .pc-split{display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start;}
       .pc-sticky{position:sticky;top:68px;}
     @media(max-width:767px){
-      .pc-sticky{position:static;margin-top:10px;}
+      .pc-sticky{position:static;margin-top:8px;}
       .pc-sticky .card{
-        max-height:240px;
+        height:220px;
         overflow-y:auto;
         border-radius:12px;
       }
@@ -1724,7 +1724,7 @@ function App(){
               {custQ.length>0&&custQ.length<2&&(
                 <div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"center"}}>2글자 이상 입력하세요</div>
               )}
-              <div className="cust-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+              <div className="cust-grid" style={{display:"grid",gridTemplateColumns:window.innerWidth<768?"1fr":"repeat(3,1fr)",gap:8}}>
                 {sortedCustomers.map(c=>{
                   const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
                   const total=cRecs.reduce((s,r)=>s+Number(r.amount||0),0);
@@ -1732,7 +1732,8 @@ function App(){
                   const btc=BT[c.bookingType]||BT["신규"];
                   return(
                     <div key={c.id} onClick={()=>setCustModal(c)}
-                      style={{background:"#fff",borderRadius:10,padding:"10px 12px",
+                      style={{background:"#fff",borderRadius:10,
+                        padding:window.innerWidth<768?"8px 10px":"10px 12px",
                         border:"1px solid #e2e8f0",cursor:"pointer",transition:"box-shadow 0.15s"}}
                       onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.08)"}
                       onMouseLeave={e=>e.currentTarget.style.boxShadow=""}>
