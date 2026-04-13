@@ -22,6 +22,8 @@
       -webkit-text-size-adjust:100%;
       -ms-text-size-adjust:100%;
       overscroll-behavior:none;
+      overflow-x:hidden;
+      max-width:100vw;
     }
     *{-webkit-tap-highlight-color:transparent;}
     body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;}
@@ -499,6 +501,7 @@ function BookingModal({modal,customers,isAdmin,onSave,onSaveCust,onDelete,onClos
   const [newPhone,setNewPhone]=useState("");
   const [newCar,setNewCar]=useState("");
   const [newCarList,setNewCarList]=useState([]);
+  const [selCar,setSelCar]=useState(ex?.car||"");
 
   const cust=customers.find(c=>c.id===custId);
   const filtered=(q.length>=2||q4.length>=4)?customers.filter(c=>{
@@ -523,9 +526,8 @@ function BookingModal({modal,customers,isAdmin,onSave,onSaveCust,onDelete,onClos
     }
     if(!services.length){alert("작업내용을 선택해주세요.");return;}
     if(isAdmin&&!amount){alert("금액을 입력해주세요.");return;}
-    // 차량: 기존고객이면 고객 차량 첫번째, 신규면 newCarList 첫번째
-    const custForCar=customers.find(c=>c.id===finalCustId||c.id===String(finalCustId));
-    const carVal=custForCar?.cars?.[0]||(newCarList?.[0]||"");
+      // 차량: 선택한 차량 우선, 없으면 빈값
+    const carVal=selCar||(newCarList?.[0]||"");
     await onSave({id:ex?.id,date,slot,customerId:finalCustId,services,
       amount:Number(amount||0),payment,memo,bookingType:btype,multiDay:Number(multiDay||1),
       car:carVal});
@@ -629,6 +631,37 @@ function BookingModal({modal,customers,isAdmin,onSave,onSaveCust,onDelete,onClos
               </div>
             )}
           </div>
+          {/* 차종 선택 - 기존고객 보유차량 있을 때 */}
+          {cust&&(cust.cars||[]).length>0&&(
+            <div>
+              <span className="label">🚗 작업 차량</span>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {(cust.cars||[]).map(c=>(
+                  <button key={c} onClick={()=>setSelCar(selCar===c?"":c)}
+                    style={{padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
+                      border:`1.5px solid ${selCar===c?"#1e293b":"#e2e8f0"}`,
+                      background:selCar===c?"#1e293b":"#fff",
+                      color:selCar===c?"#fff":"#475569"}}>
+                    🚗 {c}
+                  </button>
+                ))}
+                <button onClick={()=>setSelCar("")}
+                  style={{padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",
+                    border:"1.5px solid #e2e8f0",background:"transparent",color:"#94a3b8"}}>
+                  미선택
+                </button>
+              </div>
+            </div>
+          )}
+          {/* 차종 직접입력 - 보유차량 없거나 신규고객 */}
+          {(!cust||(cust.cars||[]).length===0)&&!custId&&(q.length>=1||q4.length>=1)&&(
+            <div>
+              <span className="label">🚗 작업 차량</span>
+              <input className="inp" placeholder="차종 직접입력" value={selCar}
+                onChange={e=>setSelCar(e.target.value)}/>
+            </div>
+          )}
+
           {/* 종일 박 수 */}
           {slot==="종일"&&(
             <div>
@@ -845,7 +878,9 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
                 <div style={{textAlign:"center",padding:"32px 0",color:"#cbd5e1",fontSize:13}}>예약 내역이 없습니다</div>
               ):sorted.map(r=>{
                 // 이 예약의 차량: r.car 있으면 우선, 없으면 고객 차량
-                const carLabel=r.car||(customer?.cars||[])[0]||"";
+                const custCars=customer?.cars||[];
+                const carLabel=r.car||(custCars.length===1?custCars[0]:"");
+                const carUnknown=!r.car&&custCars.length>1;
                 return(
                   <div key={r.id} style={{padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -854,11 +889,20 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
                           style={{fontSize:10,padding:"2px 7px",borderRadius:5,fontWeight:700}}>{r.slot}</span>
                         <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{r.date.replace(/-/g,".")}</span>
                         <span style={{fontSize:10,color:"#94a3b8"}}>{WD(r.date)}</span>
+                        {r.bookingType&&(()=>{const btc=BT[r.bookingType]||BT["신규"];return(
+                          <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,
+                            background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{r.bookingType}</span>
+                        );})()}
                       </div>
-                      <span style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>{fmtKRW(r.amount)}</span>
+                      <span style={{fontSize:13,fontWeight:800,color:"#1e293b",flexShrink:0}}>{fmtKRW(r.amount)}</span>
                     </div>
                     {carLabel&&(
                       <div style={{fontSize:11,color:"#3b82f6",fontWeight:600,marginBottom:2}}>🚗 {carLabel}</div>
+                    )}
+                    {carUnknown&&(
+                      <div style={{fontSize:11,color:"#f59e0b",fontWeight:600,marginBottom:2}}>
+                        🚗 {custCars.join(" · ")} (차량 미선택)
+                      </div>
                     )}
                     {(r.services||[]).length>0&&(
                       <div style={{fontSize:11,color:"#64748b"}}>{r.services.join(" · ")}</div>
@@ -1454,6 +1498,12 @@ function App(){
   const {customers,records,loading,connected,saveCustomer,deleteCustomer,saveRecord,deleteRecord}=useData(db);
 
   // ── 모든 useState/useRef/useEffect/useMemo는 여기에 선언 ──
+  const [isMobile,setIsMobile]=useState(window.innerWidth<768);
+  useEffect(()=>{
+    const fn=()=>setIsMobile(window.innerWidth<768);
+    window.addEventListener("resize",fn);
+    return()=>window.removeEventListener("resize",fn);
+  },[]);
   const [role,setRole]=useState(()=>{
     try{const s=localStorage.getItem(AUTH_KEY);if(s){const p=JSON.parse(s);if(p.role&&p.id)return p.role;}}catch(e){}
     return null;
@@ -1787,7 +1837,7 @@ function App(){
 
           {/* ── 고객 ─────────────────────────────────────── */}
           {tab==="customers"&&(
-            <div className="fade-in" style={{overflow:"hidden",width:"100%"}}>
+            <div className="fade-in" style={{overflow:"hidden",width:"100%",maxWidth:"100%"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontWeight:800,fontSize:15}}>고객 ({customers.length}명)</div>
                 <button className="btn-primary" onClick={()=>setCustModal("new")} style={{padding:"7px 14px",fontSize:12}}>+ 신규 등록</button>
@@ -1804,23 +1854,22 @@ function App(){
               {custQ.length>0&&custQ.length<2&&(
                 <div style={{fontSize:11,color:"#94a3b8",marginBottom:8,textAlign:"center"}}>2글자 이상 입력하세요</div>
               )}
-              <div className="cust-grid" style={{display:"grid",gridTemplateColumns:window.innerWidth>=768?"repeat(3,1fr)":"1fr",gap:8,width:"100%",overflow:"hidden"}}>
+              <div className="cust-grid" style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:8,width:"100%",overflow:"hidden"}}>
                 {sortedCustomers.map(c=>{
                   const cRecs=records.filter(r=>r.customerId===c.id||r.customerId===String(c.id));
                   const total=cRecs.reduce((s,r)=>s+Number(r.amount||0),0);
                   const last=[...cRecs].sort((a,b)=>b.date.localeCompare(a.date))[0];
-                  const btc=BT[c.bookingType]||BT["신규"];
-                  return(
+                                    return(
                     <div key={c.id} onClick={()=>setCustModal(c)}
-                      style={{background:"#fff",borderRadius:10,padding:"10px 12px",
+                      style={{background:"#fff",borderRadius:10,
+                        padding:isMobile?"10px 12px":"10px 12px",
                         border:"1px solid #e2e8f0",cursor:"pointer",transition:"box-shadow 0.15s",
-                        width:"100%",boxSizing:"border-box",overflow:"hidden"}}
+                        width:"100%",maxWidth:"100%",boxSizing:"border-box",overflow:"hidden",
+                        wordBreak:"break-all"}}
                       onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.08)"}
                       onMouseLeave={e=>e.currentTarget.style.boxShadow=""}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                         <div style={{display:"flex",alignItems:"center",gap:5,minWidth:0}}>
-                          <span style={{fontSize:8,fontWeight:700,padding:"2px 5px",borderRadius:4,flexShrink:0,
-                            background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{c.bookingType}</span>
                           <span style={{fontWeight:800,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||c.phone}</span>
                         </div>
                         {isAdmin&&<span style={{fontSize:11,fontWeight:700,color:"#1e293b",flexShrink:0,marginLeft:4}}>{fmtKRW(total)}</span>}
