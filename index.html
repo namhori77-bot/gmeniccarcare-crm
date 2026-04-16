@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
-  <meta name="version" content="20260408010201"/>
+  <meta name="version" content="20260415075035"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no"/>
   <title>G-MENIC CRM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -22,8 +22,6 @@
       -webkit-text-size-adjust:100%;
       -ms-text-size-adjust:100%;
       overscroll-behavior:none;
-      overflow-x:hidden;
-      max-width:100vw;
     }
     *{-webkit-tap-highlight-color:transparent;}
     body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;}
@@ -38,7 +36,7 @@
     .main{margin-left:200px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
     .topbar{background:#fff;border-bottom:1px solid #e2e8f0;height:52px;display:flex;
       align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:50;}
-    .content{padding:16px 20px;flex:1;overflow-x:hidden;}
+    .content{padding:16px 20px;flex:1;}
 
     /* 사이드바 */
     .sb-logo{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,0.07);}
@@ -111,8 +109,9 @@
       .cal-wrap{
         overflow-x:auto !important;
         overflow-y:hidden !important;
-        -webkit-overflow-scrolling:touch;
+        -webkit-overflow-scrolling:touch !important;
         touch-action:pan-x !important;
+        will-change:scroll-position;
       }
 
       /* ── 고객: 1열 꽉차게 ── */
@@ -174,6 +173,11 @@
     .slot-13{background:#fffbeb;border-left:3px solid #f59e0b;color:#b45309;}
     .slot-16{background:#f0fdf4;border-left:3px solid #22c55e;color:#15803d;}
     .slot-all{background:#faf5ff;border-left:3px solid #8b5cf6;color:#6d28d9;}
+    .amt-low{background:#e0f2fe;border-left:3px solid #38bdf8;color:#0369a1;}
+    .amt-mid{background:#fef9c3;border-left:3px solid #facc15;color:#a16207;}
+    .amt-high{background:#fefce8;border-left:3px solid #fde047;color:#854d0e;}
+    .amt-top{background:#dcfce7;border-left:3px solid #4ade80;color:#15803d;}
+    .amt-gmenic{background:#fff7ed;border-left:3px solid #fb923c;color:#c2410c;}
 
     /* 토스트 */
     .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
@@ -223,13 +227,70 @@ document.addEventListener('touchend',function(e){
   catch(e){console.warn("FB:",e.message);}
   window.__db=_db;
 </script>
-<script type="text/babel">// build:20260408010201
+<script type="text/babel">// build:20260415075035
 
 const {useState,useEffect,useRef,useMemo,useCallback}=React;
 
 // ── 상수 ─────────────────────────────────────────────────
 const SLOTS=["10:00","13:00","16:00","종일"];
 const SLOT_STYLE={"10:00":"slot-10","13:00":"slot-13","16:00":"slot-16","종일":"slot-all"};
+
+const EXCEL_SALES={
+  2019:[0,0,0,2776179,1974479,2537386,2271211,5333053,2699360,3097520,2821910,890000],
+  2020:[1160000,1330000,1864000,3040000,1678000,3221750,5197850,5590000,6884100,5150000,3195000,2700000],
+  2021:[4978309,3831310,5928876,15613287,9543385,5339968,7172807,3421477,6323914,9748407,8307334,7513125],
+  2022:[8326147,7221402,8284168,0,0,0,0,0,0,0,0,0],
+};
+const EXCEL_STATS={
+  2022:{
+    visits:[0,0,0,17,30,26,31,30,29,35,23,22],
+    works: [0,0,0,19,36,30,38,37,36,42,28,25],
+    normal:[0,0,0,11,22,11,18,18,11,20,13,13],
+    gmenic:[0,0,0,6,5,7,5,3,10,4,2,2],
+    naver: [0,0,0,0,3,8,8,9,8,11,8,7],
+    avg:   [0,0,0,190559,137333,192625,207698,178667,167586,176763,197422,137768],
+  },
+  2023:{
+    visits:[30,30,32,24,21,24,26,30,30,27,27,23],
+    works: [35,39,38,26,24,28,38,37,33,36,32,30],
+    normal:[13,16,21,13,13,10,10,15,17,11,10,9],
+    gmenic:[6,3,2,5,2,7,7,3,7,4,6,10],
+    naver: [11,11,9,6,6,7,9,12,6,12,11,4],
+    avg:   [222667,179267,218044,340239,110158,301875,245802,187585,194442,178793,157123,167827],
+  },
+  2024:{
+    visits:[39,33,31,43,40,27,30,47,46,36,35,39],
+    works: [48,39,33,51,47,37,43,61,60,43,41,45],
+    normal:[13,11,8,15,5,6,6,14,13,9,8,7],
+    gmenic:[6,9,6,9,6,4,7,12,2,10,10,5],
+    naver: [20,13,17,19,29,17,17,21,31,17,17,27],
+    avg:   [109322,204506,149593,159422,138659,162882,144487,210303,184565,208290,171136,125558],
+  },
+  2025:{
+    visits:[49,44,47,62,43,37,49,35,40,34,57,48],
+    works: [56,50,58,68,53,45,57,42,47,38,69,57],
+    normal:[10,12,12,16,11,14,14,6,18,5,7,5],
+    gmenic:[10,7,5,8,10,7,9,4,4,2,10,5],
+    naver: [29,25,30,38,22,16,26,25,18,27,40,38],
+    avg:   [129735,160000,156076,139381,158140,157027,143878,171429,233249,130294,157368,152708],
+  },
+  2026:{
+    visits:[37,38,40,0,0,0,0,0,0,0,0,0],
+    works: [41,45,43,0,0,0,0,0,0,0,0,0],
+    normal:[4,4,13,0,0,0,0,0,0,0,0,0],
+    gmenic:[9,3,5,0,0,0,0,0,0,0,0,0],
+    naver: [24,31,22,0,0,0,0,0,0,0,0,0],
+    avg:   [114054,129474,211250,0,0,0,0,0,0,0,0,0],
+  },
+};
+function amtClass(amount,bookingType){
+  if(bookingType==="지메닉") return "amt-gmenic";
+  const a=Number(amount||0);
+  if(a<=130000) return "amt-low";
+  if(a<=200000) return "amt-mid";
+  if(a<=500000) return "amt-high";
+  return "amt-top";
+}
 const PAYMENTS=["현금","카드"];
 const BOOKING_TYPES=["신규","기존","단골","네이버","지메닉"];
 const BT={
@@ -767,8 +828,48 @@ function BookingModal({modal,customers,isAdmin,onSave,onSaveCust,onDelete,onClos
 }
 
 // ── 고객 모달 ─────────────────────────────────────────────
-function CustomerModal({customer,records,onSave,onDelete,onClose}){
+function RecSvcInput({editRec,setEditRec}){
+  const [q,setQ]=useState("");
+  return(
+    <div style={{position:"relative"}}>
+      <input className="inp" style={{fontSize:12}} placeholder="작업내용 검색/입력 후 Enter"
+        value={q} onChange={e=>setQ(e.target.value)}
+        onKeyDown={e=>{
+          if((e.key==="Enter"||e.key===",")&&q.trim()){
+            e.preventDefault();
+            q.split(",").map(s=>s.trim()).filter(Boolean).forEach(s=>{
+              if(!(editRec.services||[]).includes(s))
+                setEditRec(v=>({...v,services:[...(v.services||[]),s]}));
+            });
+            setQ("");
+          }
+        }}/>
+      {q.length>=1&&(
+        <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,
+          boxShadow:"0 4px 12px rgba(0,0,0,0.1)",maxHeight:140,overflowY:"auto",marginTop:4}}>
+          {SERVICES.filter(s=>s.includes(q)&&!(editRec.services||[]).includes(s)).slice(0,8).map(s=>(
+            <div key={s} onClick={()=>{setEditRec(v=>({...v,services:[...(v.services||[]),s]}));setQ("");}}
+              style={{padding:"8px 14px",cursor:"pointer",fontSize:13,borderBottom:"1px solid #f8fafc"}}
+              onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+              onMouseLeave={e=>e.currentTarget.style.background=""}>
+              {s}
+            </div>
+          ))}
+          {!SERVICES.includes(q.trim())&&q.trim()&&(
+            <div onClick={()=>{setEditRec(v=>({...v,services:[...(v.services||[]),q.trim()]}));setQ("");}}
+              style={{padding:"8px 14px",cursor:"pointer",fontSize:13,color:"#3b82f6",fontWeight:700}}>
+              + "{q.trim()}" 직접 추가
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomerModal({customer,records,onSave,onSaveRec,onDelete,onClose}){
   const [tab,setTab]=useState("info"); // info | history | edit
+  const [editRec,setEditRec]=useState(null); // 수정 중인 예약
   const [name,setName]=useState(customer?.name||"");
   const [phone,setPhone]=useState(customer?.phone||"");
   const [carList,setCarList]=useState(customer?.cars||[]);
@@ -865,7 +966,7 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
                 </div>
               )}
               <div style={{display:"flex",gap:8,marginTop:4}}>
-                {customer&&<button className="btn-danger" onClick={()=>{if(confirm("삭제할까요?"))onDelete(customer.id);onClose();}}>삭제</button>}
+                {customer&&<button className="btn-danger" onClick={()=>{if(confirm("삭제할까요?"))onDeleteCust(customer.id);onClose();}}>삭제</button>}
                 <button className="btn-primary" style={{flex:1}} onClick={()=>setTab("edit")}>✏️ 수정</button>
               </div>
             </div>
@@ -877,43 +978,153 @@ function CustomerModal({customer,records,onSave,onDelete,onClose}){
               {sorted.length===0?(
                 <div style={{textAlign:"center",padding:"32px 0",color:"#cbd5e1",fontSize:13}}>예약 내역이 없습니다</div>
               ):sorted.map(r=>{
-                // 이 예약의 차량: r.car 있으면 우선, 없으면 고객 차량
                 const custCars=customer?.cars||[];
                 const carLabel=r.car||(custCars.length===1?custCars[0]:"");
                 const carUnknown=!r.car&&custCars.length>1;
+                const isEditing=editRec&&String(editRec.id)===String(r.id);
                 return(
-                  <div key={r.id} style={{padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span className={SLOT_STYLE[r.slot]||"slot-10"}
-                          style={{fontSize:10,padding:"2px 7px",borderRadius:5,fontWeight:700}}>{r.slot}</span>
-                        <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{r.date.replace(/-/g,".")}</span>
-                        <span style={{fontSize:10,color:"#94a3b8"}}>{WD(r.date)}</span>
-                        {r.bookingType&&(()=>{const btc=BT[r.bookingType]||BT["신규"];return(
-                          <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,
-                            background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{r.bookingType}</span>
-                        );})()}
+                  <div key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
+                    {/* 클릭하면 펼쳐지는 행 */}
+                    <div onClick={()=>setEditRec(isEditing?null:{...r,id:String(r.id)})}
+                      style={{padding:"10px 0",cursor:"pointer",
+                        background:isEditing?"#f8fafc":"transparent"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isEditing?0:3}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                          <span className={SLOT_STYLE[r.slot]||"slot-10"}
+                            style={{fontSize:10,padding:"2px 7px",borderRadius:5,fontWeight:700}}>{r.slot}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{r.date.replace(/-/g,".")}</span>
+                          <span style={{fontSize:10,color:"#94a3b8"}}>{WD(r.date)}</span>
+                          {r.bookingType&&(()=>{const btc=BT[r.bookingType]||BT["신규"];return(
+                            <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,
+                              background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{r.bookingType}</span>
+                          );})()}
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                          <span style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>{fmtKRW(r.amount)}</span>
+                          <span style={{fontSize:10,color:isEditing?"#3b82f6":"#94a3b8"}}>{isEditing?"▲":"▼"}</span>
+                        </div>
                       </div>
-                      <span style={{fontSize:13,fontWeight:800,color:"#1e293b",flexShrink:0}}>{fmtKRW(r.amount)}</span>
+                      {!isEditing&&(
+                        <>
+                          {carLabel&&<div style={{fontSize:11,color:"#3b82f6",fontWeight:600}}>🚗 {carLabel}</div>}
+                          {carUnknown&&<div style={{fontSize:11,color:"#f59e0b",fontWeight:600}}>🚗 {custCars.join(" · ")} (차량 미선택)</div>}
+                          {(r.services||[]).length>0&&<div style={{fontSize:11,color:"#64748b"}}>{r.services.join(" · ")}</div>}
+                          {r.memo&&<div style={{fontSize:10,color:"#94a3b8"}}>💬 {r.memo}</div>}
+                        </>
+                      )}
                     </div>
-                    {carLabel&&(
-                      <div style={{fontSize:11,color:"#3b82f6",fontWeight:600,marginBottom:2}}>🚗 {carLabel}</div>
-                    )}
-                    {carUnknown&&(
-                      <div style={{fontSize:11,color:"#f59e0b",fontWeight:600,marginBottom:2}}>
-                        🚗 {custCars.join(" · ")} (차량 미선택)
+
+                    {/* 펼쳐진 수정 폼 */}
+                    {isEditing&&(
+                      <div style={{background:"#f8fafc",borderRadius:10,padding:"12px",marginBottom:8,
+                        display:"flex",flexDirection:"column",gap:10}}>
+                        {/* 날짜 + 시간 */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                          <div>
+                            <span className="label">📅 날짜</span>
+                            <input className="inp" type="date" value={editRec.date}
+                              onChange={e=>setEditRec(v=>({...v,date:e.target.value}))}/>
+                          </div>
+                          <div>
+                            <span className="label">⏰ 시간</span>
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                              {SLOTS.map(s=>(
+                                <button key={s} onClick={()=>setEditRec(v=>({...v,slot:s}))}
+                                  style={{padding:"4px 8px",borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer",
+                                    border:`1.5px solid ${editRec.slot===s?"#1e293b":"#e2e8f0"}`,
+                                    background:editRec.slot===s?"#1e293b":"#fff",
+                                    color:editRec.slot===s?"#fff":"#94a3b8"}}>{s}</button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        {/* 차종 */}
+                        <div>
+                          <span className="label">🚗 차종</span>
+                          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                            {custCars.map(c=>(
+                              <button key={c} onClick={()=>setEditRec(v=>({...v,car:v.car===c?"":c}))}
+                                style={{padding:"4px 10px",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer",
+                                  border:`1.5px solid ${editRec.car===c?"#1e293b":"#e2e8f0"}`,
+                                  background:editRec.car===c?"#1e293b":"#fff",
+                                  color:editRec.car===c?"#fff":"#475569"}}>🚗 {c}</button>
+                            ))}
+                            <input className="inp" placeholder="직접입력" value={editRec.car||""}
+                              onChange={e=>setEditRec(v=>({...v,car:e.target.value}))}
+                              style={{flex:1,minWidth:80,fontSize:11}}/>
+                          </div>
+                        </div>
+                        {/* 예약구분 */}
+                        <div>
+                          <span className="label">🏷️ 구분</span>
+                          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                            {BOOKING_TYPES.map(t=>{const btc=BT[t]||BT["신규"];return(
+                              <button key={t} onClick={()=>setEditRec(v=>({...v,bookingType:t}))}
+                                style={{padding:"4px 10px",borderRadius:20,fontSize:10,fontWeight:700,cursor:"pointer",
+                                  border:`1.5px solid ${editRec.bookingType===t?btc.color:"#e2e8f0"}`,
+                                  background:editRec.bookingType===t?btc.bg:"#fff",
+                                  color:editRec.bookingType===t?btc.color:"#94a3b8"}}>{t}</button>
+                            );})}
+                          </div>
+                        </div>
+                        {/* 작업내용 */}
+                        <div>
+                          <span className="label">🔧 작업내용</span>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:5}}>
+                            {(editRec.services||[]).map(s=>(
+                              <span key={s} style={{fontSize:11,background:"#1e293b",color:"#fff",
+                                padding:"2px 7px",borderRadius:5,fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
+                                {s}<span onClick={()=>setEditRec(v=>({...v,services:v.services.filter(x=>x!==s)}))}
+                                  style={{cursor:"pointer",opacity:0.6}}>✕</span>
+                              </span>
+                            ))}
+                          </div>
+                          <RecSvcInput editRec={editRec} setEditRec={setEditRec}/>
+                        </div>
+                        {/* 금액/결제 */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                          <div>
+                            <span className="label">💰 금액</span>
+                            <input className="inp" type="number" value={editRec.amount||""}
+                              onChange={e=>setEditRec(v=>({...v,amount:Number(e.target.value)}))}/>
+                          </div>
+                          <div>
+                            <span className="label">💳 결제</span>
+                            <div style={{display:"flex",gap:4}}>
+                              {PAYMENTS.map(p=>(
+                                <button key={p} onClick={()=>setEditRec(v=>({...v,payment:p}))}
+                                  style={{padding:"5px 8px",borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer",
+                                    border:`1.5px solid ${editRec.payment===p?"#1e293b":"#e2e8f0"}`,
+                                    background:editRec.payment===p?"#1e293b":"#fff",
+                                    color:editRec.payment===p?"#fff":"#94a3b8"}}>{p}</button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        {/* 메모 */}
+                        <div>
+                          <span className="label">📝 메모</span>
+                          <textarea className="inp" rows={2} value={editRec.memo||""}
+                            onChange={e=>setEditRec(v=>({...v,memo:e.target.value}))}
+                            style={{resize:"none"}}/>
+                        </div>
+                        {/* 버튼 */}
+                        <div style={{display:"flex",gap:8}}>
+                          <button className="btn-danger" onClick={async()=>{
+                            if(confirm("삭제할까요?")){await onDelete(editRec.id);setEditRec(null);}
+                          }}>삭제</button>
+                          <button className="btn-secondary" onClick={()=>setEditRec(null)}>취소</button>
+                          <button className="btn-primary" style={{flex:1}} onClick={async()=>{
+                            await onSaveRec(editRec);setEditRec(null);
+                          }}>💾 저장</button>
+                        </div>
                       </div>
                     )}
-                    {(r.services||[]).length>0&&(
-                      <div style={{fontSize:11,color:"#64748b"}}>{r.services.join(" · ")}</div>
-                    )}
-                    {r.memo&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>💬 {r.memo}</div>}
                   </div>
                 );
               })}
             </div>
           )}
-
           {/* ── 수정 탭 ── */}
           {tab==="edit"&&(
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -1094,7 +1305,7 @@ function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase,half
   const DAYS_HEADER=["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
   return(
-    <div style={{overflowX:isPC?"hidden":"auto"}}>
+    <div className={isPC?"":"cal-wrap"} style={{overflowX:isPC?"hidden":"auto",touchAction:isPC?"auto":"pan-x"}}>
       <div style={{width:isPC?"100%":"calc(100px * 7 + 6px)",minWidth:isPC?"100%":"700px"}}>
         {/* 요일 헤더 */}
         <div style={{display:"grid",gridTemplateColumns:isPC?"repeat(7,1fr)":"repeat(7,100px)",gap:1,background:"#e2e8f0",borderRadius:"10px 10px 0 0",overflow:"hidden"}}>
@@ -1131,7 +1342,7 @@ function BigCalendar({year,month,calMap,isWeek,selDate,onCellClick,weekBase,half
                   </div>
                 ))}
                 {data.time.map((r,j)=>(
-                  <div key={j} className={SLOT_STYLE[r.slot]||"slot-10"}
+                  <div key={j} className={amtClass(r._amount,r._bookingType)}
                     style={{fontSize:9,fontWeight:700,padding:"2px 4px",borderRadius:3,marginBottom:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {r.slot} {r._custName||""}
                   </div>
@@ -1151,253 +1362,247 @@ function AnalyticsTab({records}){
   const now=new Date();
   const [aYear,setAYear]=useState(now.getFullYear());
 
-  // 월별 데이터
-  const monthlyData=Array.from({length:12},(_,i)=>{
-    const prefix=`${aYear}-${String(i+1).padStart(2,"0")}`;
+  const monthlyData=Array.from({length:12},(_,mi)=>{
+    const prefix=`${aYear}-${String(mi+1).padStart(2,"0")}`;
     const recs=records.filter(r=>r.date.startsWith(prefix));
-    return{month:i+1,total:recs.reduce((s,r)=>s+Number(r.amount||0),0),count:recs.length};
+    return{month:mi+1,total:recs.reduce((s,r)=>s+Number(r.amount||0),0),count:recs.length};
   });
   const maxMonthly=Math.max(...monthlyData.map(d=>d.total),1);
 
-  // 연도별 데이터
-  const years=[...new Set(records.map(r=>r.date.slice(0,4)))].sort((a,b)=>b-a);
-  const yearlyData=years.map(y=>({
-    year:y,
-    total:records.filter(r=>r.date.startsWith(y)).reduce((s,r)=>s+Number(r.amount||0),0),
-    count:records.filter(r=>r.date.startsWith(y)).length
-  }));
-  const maxYearly=Math.max(...yearlyData.map(d=>d.total),1);
+  const fmtM=n=>n>0?`${Math.round(n/10000)}만`:"-";
+  const fmtV=n=>n>0?String(n):"-";
+
+  const allYears=[2019,2020,2021,2022,2023,2024,2025,2026];
+  const yearRows=allYears.map(y=>{
+    const excelMonths=EXCEL_SALES[y]||Array(12).fill(0);
+    const dbMonths=Array.from({length:12},(_,mi)=>{
+      const prefix=`${y}-${String(mi+1).padStart(2,"0")}`;
+      return records.filter(r=>r.date.startsWith(prefix)).reduce((s,r)=>s+Number(r.amount||0),0);
+    });
+    const months=excelMonths.map((e,i)=>e+dbMonths[i]);
+    const total=months.reduce((s,v)=>s+v,0);
+    return{year:y,months,total};
+  }).filter(r=>r.total>0);
+  const grandTotal=yearRows.reduce((s,r)=>s+r.total,0);
+
+  function getStats(y){
+    const es=EXCEL_STATS[y]||{visits:Array(12).fill(0),works:Array(12).fill(0),normal:Array(12).fill(0),gmenic:Array(12).fill(0),naver:Array(12).fill(0),avg:Array(12).fill(0)};
+    const dbV=Array.from({length:12},(_,mi)=>{const p=`${y}-${String(mi+1).padStart(2,"0")}`;return records.filter(r=>r.date.startsWith(p)).length;});
+    const dbN=Array.from({length:12},(_,mi)=>{const p=`${y}-${String(mi+1).padStart(2,"0")}`;return records.filter(r=>r.date.startsWith(p)&&r.bookingType==="네이버").length;});
+    const dbG=Array.from({length:12},(_,mi)=>{const p=`${y}-${String(mi+1).padStart(2,"0")}`;return records.filter(r=>r.date.startsWith(p)&&r.bookingType==="지메닉").length;});
+    const visits=es.visits.map((e,i)=>e+dbV[i]);
+    const naver=es.naver.map((e,i)=>e+dbN[i]);
+    const gmenic=es.gmenic.map((e,i)=>e+dbG[i]);
+    const yr_total=visits.reduce((s,v)=>s+v,0);
+    return{visits,works:es.works,normal:es.normal,gmenic,naver,avg:es.avg};
+  }
 
   return(
     <div className="fade-in">
-      {/* 탭 선택 */}
-      <div style={{display:"flex",background:"#fff",borderRadius:10,padding:3,marginBottom:14,
-        border:"1px solid #e2e8f0",width:"fit-content"}}>
+      <div style={{display:"flex",background:"#fff",borderRadius:10,padding:3,marginBottom:14,border:"1px solid #e2e8f0",width:"fit-content"}}>
         {[["monthly","월별 분석"],["yearly","연도별 분석"]].map(([v,l])=>(
           <button key={v} onClick={()=>setAView(v)}
             style={{padding:"7px 18px",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",
-              background:aView===v?"#1e293b":"none",color:aView===v?"#fff":"#94a3b8"}}>{l}</button>
+              background:aView===v?"#1e293b":"transparent",color:aView===v?"#fff":"#94a3b8"}}>{l}</button>
         ))}
       </div>
 
       {aView==="monthly"&&(
-        <div className="card">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div style={{fontWeight:800,fontSize:14}}>📈 {aYear}년 월별 매출</div>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <button onClick={()=>setAYear(y=>y-1)} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,width:24,height:24,cursor:"pointer",fontSize:12}}>‹</button>
-              <span style={{fontSize:13,fontWeight:700}}>{aYear}</span>
-              <button onClick={()=>setAYear(y=>y+1)} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:5,width:24,height:24,cursor:"pointer",fontSize:12}}>›</button>
-            </div>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <button onClick={()=>setAYear(y=>y-1)} style={{width:28,height:28,border:"1px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}}>‹</button>
+            <span style={{fontWeight:800,fontSize:15}}>{aYear}년</span>
+            <button onClick={()=>setAYear(y=>y+1)} style={{width:28,height:28,border:"1px solid #e2e8f0",borderRadius:6,background:"#fff",cursor:"pointer"}}>›</button>
           </div>
-          {monthlyData.map(d=>(
-            <div key={d.month} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-              <div style={{width:28,fontSize:12,fontWeight:700,color:"#64748b",flexShrink:0}}>{d.month}월</div>
-              <div style={{flex:1,height:20,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${(d.total/maxMonthly)*100}%`,
-                  background:"#1e293b",borderRadius:4,transition:"width 0.5s"}}/>
-              </div>
-              <div style={{width:90,fontSize:12,fontWeight:700,color:"#1e293b",textAlign:"right",flexShrink:0}}>{fmtKRW(d.total)}</div>
-              <div style={{width:28,fontSize:11,color:"#94a3b8",flexShrink:0,textAlign:"right"}}>{d.count}건</div>
-            </div>
-          ))}
-          <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",fontSize:13}}>
-            <span style={{color:"#64748b"}}>연간 합계</span>
-            <span style={{fontWeight:800,color:"#1e293b"}}>{fmtKRW(monthlyData.reduce((s,d)=>s+d.total,0))}</span>
-          </div>
-        </div>
-      )}
-
-      {aView==="monthly"&&(
-        <div className="analytics-3col" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginTop:12}}>
-          {/* 예약구분별 통계 */}
-          <div className="card" style={{padding:12}}>
-            <div style={{fontWeight:800,fontSize:12,marginBottom:10,color:"#1e293b"}}>🏷️ 예약구분별</div>
-            {BOOKING_TYPES.map(bt=>{
-              const recs=records.filter(r=>r.bookingType===bt&&r.date.startsWith(`${aYear}-`));
-              const total=recs.reduce((s,r)=>s+Number(r.amount||0),0);
-              const btc=BT[bt]||BT["신규"];
-              if(!recs.length) return null;
-              return(
-                <div key={bt} style={{marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,
-                      background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{bt}</span>
-                    <span style={{fontSize:11,color:"#94a3b8"}}>{recs.length}건</span>
-                  </div>
-                  <div style={{height:6,background:"#f1f5f9",borderRadius:3,overflow:"hidden"}}>
-                    <div style={{height:"100%",background:btc.color,borderRadius:3,
-                      width:`${(recs.length/Math.max(...BOOKING_TYPES.map(b=>records.filter(r=>r.bookingType===b&&r.date.startsWith(`${aYear}-`)).length),1))*100}%`}}/>
-                  </div>
-                  <div style={{fontSize:10,color:"#64748b",marginTop:2,textAlign:"right"}}>{fmtKRW(total)}</div>
+          <div className="card" style={{marginBottom:12}}>
+            <div style={{fontWeight:800,fontSize:13,marginBottom:10}}>월별 매출</div>
+            {monthlyData.map(d=>(
+              <div key={d.month} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{width:24,fontSize:11,color:"#64748b",flexShrink:0}}>{d.month}월</span>
+                <div style={{flex:1,height:18,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",background:"linear-gradient(90deg,#1e293b,#3b82f6)",borderRadius:4,
+                    width:`${(d.total/maxMonthly)*100}%`,transition:"width 0.3s"}}/>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* 네이버 고객 세분화 */}
-          <div className="card" style={{padding:12}}>
-            <div style={{fontWeight:800,fontSize:12,marginBottom:10,color:"#1e293b"}}>🟢 네이버 고객</div>
-            {(()=>{
-              const nRecs=records.filter(r=>r.bookingType==="네이버"&&r.date.startsWith(`${aYear}-`));
-              const total=nRecs.reduce((s,r)=>s+Number(r.amount||0),0);
-              const allRecs=records.filter(r=>r.date.startsWith(`${aYear}-`));
-              const pct=allRecs.length?Math.round(nRecs.length/allRecs.length*100):0;
-              // 월별 네이버 건수
-              const byMonth=Array.from({length:12},(_,i)=>{
-                const prefix=`${aYear}-${String(i+1).padStart(2,"0")}`;
-                return{m:i+1,cnt:nRecs.filter(r=>r.date.startsWith(prefix)).length};
-              }).filter(d=>d.cnt>0);
-              return(
-                <>
-                  <div style={{background:"#f0fdf4",borderRadius:8,padding:"8px 10px",marginBottom:10}}>
-                    <div style={{fontSize:11,color:"#64748b"}}>전체 대비 비율</div>
-                    <div style={{fontSize:18,fontWeight:800,color:"#16a34a"}}>{pct}%</div>
-                    <div style={{fontSize:10,color:"#94a3b8"}}>{nRecs.length}건 / {fmtKRW(total)}</div>
-                  </div>
-                  {byMonth.map(d=>(
-                    <div key={d.m} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                      <span style={{width:24,fontSize:10,color:"#64748b",flexShrink:0}}>{d.m}월</span>
-                      <div style={{flex:1,height:5,background:"#f1f5f9",borderRadius:3}}>
-                        <div style={{height:"100%",background:"#16a34a",borderRadius:3,
-                          width:`${(d.cnt/Math.max(...byMonth.map(x=>x.cnt),1))*100}%`}}/>
-                      </div>
-                      <span style={{fontSize:10,color:"#16a34a",fontWeight:700,flexShrink:0}}>{d.cnt}</span>
-                    </div>
-                  ))}
-                </>
-              );
-            })()}
-          </div>
-
-          {/* 작업내용 TOP10 */}
-          <div className="card" style={{padding:12}}>
-            <div style={{fontWeight:800,fontSize:12,marginBottom:10,color:"#1e293b"}}>🔧 작업 TOP10</div>
-            {(()=>{
-              const svcCount={};
-              records.filter(r=>r.date.startsWith(`${aYear}-`)).forEach(r=>{
-                (r.services||[]).forEach(s=>{svcCount[s]=(svcCount[s]||0)+1;});
-              });
-              const sorted=Object.entries(svcCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
-              const maxCnt=sorted[0]?.[1]||1;
-              return sorted.map(([svc,cnt],i)=>(
-                <div key={svc} style={{marginBottom:5}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                    <span style={{fontSize:10,fontWeight:600,color:"#334155"}}>{i+1}. {svc}</span>
-                    <span style={{fontSize:10,color:"#94a3b8"}}>{cnt}건</span>
-                  </div>
-                  <div style={{height:4,background:"#f1f5f9",borderRadius:2}}>
-                    <div style={{height:"100%",background:"#3b82f6",borderRadius:2,
-                      width:`${(cnt/maxCnt)*100}%`}}/>
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        </div>
-      )}
-
-      {aView==="yearly"&&yearlyData.length===0&&(
-        <div className="card" style={{textAlign:"center",padding:"32px 0",color:"#cbd5e1"}}>데이터 없음</div>
-      )}
-      {aView==="yearly"&&yearlyData.length>0&&(
-        <>
-          {/* 요약 카드 */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
-            {[
-              {label:"총 누적 매출",val:fmtKRW(yearlyData.reduce((s,d)=>s+d.total,0)),color:"#1e293b"},
-              {label:"총 입고",val:`${yearlyData.reduce((s,d)=>s+d.count,0)}건`,color:"#3b82f6"},
-              {label:"연평균 매출",val:fmtKRW(Math.round(yearlyData.reduce((s,d)=>s+d.total,0)/Math.max(yearlyData.length,1))),color:"#10b981"},
-            ].map((s,i)=>(
-              <div key={i} className="card" style={{padding:"12px 14px",textAlign:"center"}}>
-                <div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>{s.label}</div>
-                <div style={{fontSize:14,fontWeight:800,color:s.color}}>{s.val}</div>
+                <span style={{width:70,fontSize:11,fontWeight:700,color:"#1e293b",textAlign:"right",flexShrink:0}}>{d.total>0?fmtM(d.total):"-"}</span>
+                <span style={{width:30,fontSize:10,color:"#94a3b8",flexShrink:0}}>{d.count}건</span>
               </div>
             ))}
           </div>
+          <div className="analytics-3col" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            <div className="card">
+              <div style={{fontWeight:700,fontSize:12,marginBottom:8}}>예약 구분별</div>
+              {BOOKING_TYPES.map(bt=>{
+                const recs=records.filter(r=>r.bookingType===bt&&r.date.startsWith(`${aYear}-`));
+                const total=recs.reduce((s,r)=>s+Number(r.amount||0),0);
+                const btc=BT[bt]||BT["신규"];
+                if(!recs.length) return null;
+                return(
+                  <div key={bt} style={{marginBottom:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                      <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:4,
+                        background:btc.bg,color:btc.color,border:`1px solid ${btc.border}`}}>{bt}</span>
+                      <span style={{fontSize:10,color:"#94a3b8"}}>{recs.length}건</span>
+                    </div>
+                    <div style={{fontSize:10,color:"#64748b",textAlign:"right"}}>{fmtKRW(total)}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="card">
+              <div style={{fontWeight:700,fontSize:12,marginBottom:8}}>네이버 고객</div>
+              {(()=>{
+                const nRecs=records.filter(r=>r.bookingType==="네이버"&&r.date.startsWith(`${aYear}-`));
+                const total=nRecs.reduce((s,r)=>s+Number(r.amount||0),0);
+                const allRecs=records.filter(r=>r.date.startsWith(`${aYear}-`));
+                const pct=allRecs.length?Math.round(nRecs.length/allRecs.length*100):0;
+                const byMonth=Array.from({length:12},(_,i)=>{
+                  const prefix=`${aYear}-${String(i+1).padStart(2,"0")}`;
+                  return{m:i+1,cnt:nRecs.filter(r=>r.date.startsWith(prefix)).length};
+                }).filter(d=>d.cnt>0);
+                const maxCnt=Math.max(...byMonth.map(d=>d.cnt),1);
+                return(
+                  <>
+                    <div style={{background:"#f0fdf4",borderRadius:6,padding:"6px 8px",marginBottom:6}}>
+                      <div style={{fontSize:18,fontWeight:800,color:"#16a34a"}}>{pct}%</div>
+                      <div style={{fontSize:10,color:"#94a3b8"}}>{nRecs.length}건 / {fmtKRW(total)}</div>
+                    </div>
+                    {byMonth.map(d=>(
+                      <div key={d.m} style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}>
+                        <span style={{width:22,fontSize:10,color:"#64748b"}}>{d.m}월</span>
+                        <div style={{flex:1,height:4,background:"#f1f5f9",borderRadius:2}}>
+                          <div style={{height:"100%",background:"#16a34a",borderRadius:2,width:`${(d.cnt/maxCnt)*100}%`}}/>
+                        </div>
+                        <span style={{fontSize:10,color:"#16a34a",fontWeight:700}}>{d.cnt}</span>
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
+            </div>
+            <div className="card">
+              <div style={{fontWeight:700,fontSize:12,marginBottom:8}}>작업 TOP10</div>
+              {(()=>{
+                const svcCount={};
+                records.filter(r=>r.date.startsWith(`${aYear}-`)).forEach(r=>{
+                  (r.services||[]).forEach(s=>{svcCount[s]=(svcCount[s]||0)+1;});
+                });
+                const sorted=Object.entries(svcCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+                const maxCnt=sorted[0]?.[1]||1;
+                return sorted.map(([svc,cnt],i)=>(
+                  <div key={svc} style={{marginBottom:4}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}>
+                      <span style={{fontSize:10,color:"#334155"}}>{i+1}. {svc}</span>
+                      <span style={{fontSize:10,color:"#94a3b8"}}>{cnt}</span>
+                    </div>
+                    <div style={{height:3,background:"#f1f5f9",borderRadius:2}}>
+                      <div style={{height:"100%",background:"#3b82f6",borderRadius:2,width:`${(cnt/maxCnt)*100}%`}}/>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
-          {/* 연도×월 매트릭스 테이블 */}
-          <div className="card" style={{padding:0,overflow:"hidden"}}>
+      {aView==="yearly"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+            {[
+              {label:"총 누적 매출",val:fmtKRW(grandTotal),color:"#1e293b"},
+              {label:"영업 연수",val:`${yearRows.length}년`,color:"#3b82f6"},
+              {label:"연평균 매출",val:fmtKRW(Math.round(grandTotal/Math.max(yearRows.length,1))),color:"#10b981"},
+            ].map((s,i)=>(
+              <div key={i} className="card" style={{padding:"12px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>{s.label}</div>
+                <div style={{fontSize:13,fontWeight:800,color:s.color}}>{s.val}</div>
+              </div>
+            ))}
+          </div>
+          <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
+            <div style={{background:"#1e293b",color:"#fff",padding:"10px 14px",fontWeight:800,fontSize:13}}>📊 연도별 매출 현황</div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,minWidth:700}}>
                 <thead>
-                  <tr style={{background:"#1e293b",color:"#fff"}}>
-                    <th style={{padding:"8px 10px",textAlign:"left",fontWeight:700,whiteSpace:"nowrap",position:"sticky",left:0,background:"#1e293b"}}>연도</th>
-                    {Array.from({length:12},(_,i)=>(
-                      <th key={i} style={{padding:"8px 6px",textAlign:"right",fontWeight:700}}>{i+1}월</th>
-                    ))}
-                    <th style={{padding:"8px 10px",textAlign:"right",fontWeight:700,background:"#0f172a"}}>합계</th>
+                  <tr style={{background:"#334155",color:"#fff"}}>
+                    <th style={{padding:"7px 10px",textAlign:"left",position:"sticky",left:0,background:"#334155",minWidth:65}}>연도</th>
+                    {Array.from({length:12},(_,i)=><th key={i} style={{padding:"6px 4px",textAlign:"right",minWidth:44}}>{i+1}월</th>)}
+                    <th style={{padding:"7px 8px",textAlign:"right",background:"#1e293b",minWidth:58}}>합계</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {yearlyData.map((yd,yi)=>{
-                    const monthTotals=Array.from({length:12},(_,mi)=>{
-                      const prefix=`${yd.year}-${String(mi+1).padStart(2,"0")}`;
-                      return records.filter(r=>r.date.startsWith(prefix)).reduce((s,r)=>s+Number(r.amount||0),0);
-                    });
-                    return(
-                      <tr key={yd.year} style={{borderBottom:"1px solid #f1f5f9",background:yi%2===0?"#fff":"#f8fafc"}}>
-                        <td style={{padding:"7px 10px",fontWeight:700,color:"#1e293b",position:"sticky",left:0,background:yi%2===0?"#fff":"#f8fafc"}}>{yd.year}</td>
-                        {monthTotals.map((t,mi)=>(
-                          <td key={mi} style={{padding:"7px 6px",textAlign:"right",color:t>0?"#1e293b":"#e2e8f0",fontWeight:t>0?600:400}}>
-                            {t>0?`${Math.round(t/10000)}만`:"-"}
-                          </td>
-                        ))}
-                        <td style={{padding:"7px 10px",textAlign:"right",fontWeight:800,color:"#1e293b",background:"#fef9c3"}}>{fmtKRW(yd.total)}</td>
-                      </tr>
-                    );
-                  })}
-                  {/* 누적합계 행 */}
-                  <tr style={{background:"#1e293b",color:"#fff",fontWeight:700}}>
-                    <td style={{padding:"8px 10px",position:"sticky",left:0,background:"#1e293b"}}>누적합계</td>
+                  {yearRows.map((yr,yi)=>(
+                    <tr key={yr.year} style={{borderBottom:"1px solid #f1f5f9",background:yi%2===0?"#fff":"#f8fafc"}}>
+                      <td style={{padding:"6px 10px",fontWeight:800,color:"#1e293b",position:"sticky",left:0,background:yi%2===0?"#fff":"#f8fafc"}}>{yr.year}년</td>
+                      {yr.months.map((t,mi)=>(
+                        <td key={mi} style={{padding:"5px 4px",textAlign:"right",fontSize:10,
+                          color:t>0?"#1e293b":"#e2e8f0",fontWeight:t>=5000000?800:t>0?500:400,
+                          background:t>=8000000?"#fef9c3":t>=5000000?"#f0fdf4":"transparent"}}>
+                          {fmtM(t)}
+                        </td>
+                      ))}
+                      <td style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:"#fff",background:"#1e293b"}}>{fmtM(yr.total)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{background:"#0f172a",color:"#fff",fontWeight:700}}>
+                    <td style={{padding:"7px 10px",position:"sticky",left:0,background:"#0f172a"}}>누적합계</td>
                     {Array.from({length:12},(_,mi)=>{
-                      const t=yearlyData.reduce((s,yd)=>{
-                        const prefix=`${yd.year}-${String(mi+1).padStart(2,"0")}`;
-                        return s+records.filter(r=>r.date.startsWith(prefix)).reduce((ss,r)=>ss+Number(r.amount||0),0);
-                      },0);
-                      return <td key={mi} style={{padding:"8px 6px",textAlign:"right"}}>{t>0?`${Math.round(t/10000)}만`:"-"}</td>;
+                      const t=yearRows.reduce((s,yr)=>s+yr.months[mi],0);
+                      return <td key={mi} style={{padding:"5px 4px",textAlign:"right",fontSize:10}}>{fmtM(t)}</td>;
                     })}
-                    <td style={{padding:"8px 10px",textAlign:"right",background:"#0f172a"}}>{fmtKRW(yearlyData.reduce((s,d)=>s+d.total,0))}</td>
+                    <td style={{padding:"7px 8px",textAlign:"right",background:"#000"}}>{fmtKRW(grandTotal)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-
-          {/* 연도별 통계 테이블 */}
-          <div className="card" style={{marginTop:12}}>
-            <div style={{fontWeight:800,fontSize:13,marginBottom:12}}>📊 연도별 통계</div>
-            {yearlyData.map(yd=>{
-              const avg=yd.count?Math.round(yd.total/yd.count):0;
-              const btCounts={};
-              BOOKING_TYPES.forEach(bt=>{
-                btCounts[bt]=records.filter(r=>r.bookingType===bt&&r.date.startsWith(yd.year)).length;
-              });
-              return(
-                <div key={yd.year} style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #f1f5f9"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                    <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:1,color:"#1e293b"}}>{yd.year}</span>
-                    <span style={{fontSize:11,color:"#94a3b8"}}>{yd.count}건</span>
-                    <span style={{fontSize:11,fontWeight:700,color:"#10b981",marginLeft:"auto"}}>{fmtKRW(yd.total)}</span>
-                  </div>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:6}}>
-                    <span style={{fontSize:10,background:"#f1f5f9",padding:"2px 8px",borderRadius:5,color:"#64748b"}}>평균단가 {fmtKRW(avg)}</span>
-                    {BOOKING_TYPES.map(bt=>btCounts[bt]>0&&(
-                      <span key={bt} style={{fontSize:10,padding:"2px 8px",borderRadius:5,
-                        background:BT[bt]?.bg||"#f1f5f9",color:BT[bt]?.color||"#64748b"}}>
-                        {bt} {btCounts[bt]}
-                      </span>
-                    ))}
-                  </div>
-                  <div style={{height:6,background:"#f1f5f9",borderRadius:3,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${(yd.total/maxYearly)*100}%`,
-                      background:"linear-gradient(90deg,#1e293b,#3b82f6)",borderRadius:3}}/>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="card" style={{padding:0,overflow:"hidden"}}>
+            <div style={{background:"#1e293b",color:"#fff",padding:"10px 14px",fontWeight:800,fontSize:13}}>📈 연도별 상세 통계</div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,minWidth:700}}>
+                <thead>
+                  <tr style={{background:"#334155",color:"#fff"}}>
+                    <th style={{padding:"7px 10px",textAlign:"left",position:"sticky",left:0,background:"#334155",minWidth:65}}>연도</th>
+                    {Array.from({length:12},(_,i)=><th key={i} style={{padding:"6px 4px",textAlign:"right",minWidth:44}}>{i+1}월</th>)}
+                    <th style={{padding:"7px 8px",textAlign:"right",background:"#1e293b",minWidth:55}}>합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...yearRows].reverse().map((yr,yi)=>{
+                    const st=getStats(yr.year);
+                    const rows=[
+                      {label:"매출",vals:yr.months,isSales:true},
+                      {label:"입고",vals:st.visits},
+                      {label:"시공작업수",vals:st.works},
+                      {label:"일반",vals:st.normal},
+                      {label:"지메닉",vals:st.gmenic},
+                      {label:"네이버예약",vals:st.naver},
+                      {label:"평균단가",vals:st.avg,isAvg:true},
+                    ];
+                    return rows.map((row,ri)=>(
+                      <tr key={`${yr.year}-${ri}`} style={{borderBottom:ri===rows.length-1?"2px solid #cbd5e1":"1px solid #f8fafc",
+                        background:ri===0?(yi%2===0?"#dbeafe":"#bfdbfe"):yi%2===0?"#fff":"#f8fafc"}}>
+                        <td style={{padding:"5px 10px",position:"sticky",left:0,fontWeight:ri===0?800:500,fontSize:ri===0?12:10,
+                          background:ri===0?"#1d4ed8":"#f8fafc",color:ri===0?"#fff":"#64748b"}}>
+                          {ri===0?`${yr.year}년`:row.label}
+                        </td>
+                        {row.vals.map((v,mi)=>(
+                          <td key={mi} style={{padding:"5px 4px",textAlign:"right",fontSize:10,color:v>0?ri===0?"#1e293b":"#475569":"#e2e8f0"}}>
+                            {ri===0?fmtM(v):row.isAvg?(v>0?`${Math.round(v/10000)}만`:"-"):fmtV(v)}
+                          </td>
+                        ))}
+                        <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,fontSize:10,
+                          background:ri===0?"#1d4ed8":"#f1f5f9",color:ri===0?"#fff":"#475569"}}>
+                          {ri===0?fmtM(yr.total):row.isAvg?(()=>{const tot=row.vals.reduce((s,v)=>s+v,0);const cnt=row.vals.filter(v=>v>0).length;return cnt>0?`${Math.round(tot/cnt/10000)}만`:"-";})():row.vals.reduce((s,v)=>s+v,0)||"-"}
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -1542,11 +1747,11 @@ function App(){
         days.forEach((d,idx)=>{
           ensure(d);
           map[d].allDay.push({...r,_custName:name,_spanIdx:idx,_spanTotal:days.length,
-            _isFirst:idx===0,_isLast:idx===days.length-1});
+            _isFirst:idx===0,_isLast:idx===days.length-1,_amount:r.amount,_bookingType:r.bookingType});
         });
       } else {
         ensure(r.date);
-        map[r.date].time.push({...r,_custName:name});
+        map[r.date].time.push({...r,_custName:name,_amount:Number(r.amount||0),_bookingType:r.bookingType||''});
       }
     });
     return map;
@@ -1779,7 +1984,7 @@ function App(){
 
           {/* ── 캘린더 ───────────────────────────────────── */}
           {tab==="calendar"&&(
-            <div className="fade-in">
+            <div className="fade-in" style={{overflowX:"visible"}}>
               {/* 뷰 선택 + 네비게이션 */}
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8,flexWrap:"wrap"}}>
                 <div style={{display:"flex",background:"#fff",borderRadius:8,padding:2,gap:1,border:"1px solid #e2e8f0"}}>
@@ -1817,7 +2022,7 @@ function App(){
 
               {/* 범례 */}
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-                {[["10:00","slot-10"],["13:00","slot-13"],["16:00","slot-16"],["종일","slot-all"]].map(([s,cls])=>(
+                {[["~13만","amt-low"],["~20만","amt-mid"],["~50만","amt-high"],["51만+","amt-top"],["지메닉","amt-gmenic"]].map(([s,cls])=>(
                   <span key={s} className={cls} style={{fontSize:10,fontWeight:700,padding:"3px 10px",borderRadius:5}}>{s}</span>
                 ))}
                 <span onClick={()=>openBooking(selDate,"10:00")}
@@ -1925,7 +2130,7 @@ function App(){
         <CustomerModal
           customer={custModal==="new"?null:custModal}
           records={custModal==="new"?[]:records.filter(r=>r.customerId===custModal?.id||r.customerId===String(custModal?.id))}
-          onSave={saveCustomer} onDelete={deleteCustomer} onClose={()=>setCustModal(null)}/>
+          onSave={saveCustomer} onSaveRec={saveRecord} onDelete={deleteRecord} onDeleteCust={deleteCustomer} onClose={()=>setCustModal(null)}/>
       )}
 
       {/* 계정관리 모달 */}
